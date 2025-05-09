@@ -1,16 +1,29 @@
-## Hi there 👋
+# Nyborg RPA
 
-<!--
-**nyborg-rpa/nyborg-rpa** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+This is the workspace of Nyborg RPA.
 
-Here are some ideas to get you started:
+## Requirements
 
-- 🔭 I’m currently working on ...
-- 🌱 I’m currently learning ...
-- 👯 I’m looking to collaborate on ...
-- 🤔 I’m looking for help with ...
-- 💬 Ask me about ...
-- 📫 How to reach me: ...
-- 😄 Pronouns: ...
-- ⚡ Fun fact: ...
--->
+- [`git`](https://git-scm.com/)
+- [`uv`](https://github.com/astral-sh/uv)
+
+## Installation
+
+The workspace consists of a `nyborg_rpa` package, which contains various submodules in the `packages/` directory.
+
+Install the workspace by **recursively** cloning it:
+
+```sh
+git clone git@github.com:nyborg-rpa/nyborg-rpa.git --recursive
+```
+
+and then setup the project by running:
+
+```sh
+cd nyborg-rpa
+uv sync
+```
+
+## Usage
+
+See [examples/](./examples/) for usage examples.
