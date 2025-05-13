@@ -51,5 +51,9 @@ def index(client: Client):
         ui.button("Start", on_click=start_server)
 
 
-if __name__ == "__main__":
+def main():
     ui.run(native=True, reload=False, reconnect_timeout=0, title="Robot Login")
+
+
+if __name__ == "__main__":
+    main()
