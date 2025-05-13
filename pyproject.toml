@@ -4,7 +4,8 @@ version = "0.1.0"
 description = "Workspace of Nyborg RPA."
 readme = "README.md"
 authors = [
-    { name = "Martin Androvich", email = "martinandrovich@gmail.com" }
+    { name = "Martin Androvich", email = "martinandrovich@gmail.com" },
+    { name = "Emil Damholt Andersen", email = "damholt-a@live.dk" },
 ]
 requires-python = "~=3.13.0"
 dependencies = [
