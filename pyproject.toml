@@ -26,5 +26,5 @@ build-backend = "hatchling.build"
 [tool.uv.sources]
 kmd-nova-client = { path = "./packages/kmd-nova-client", editable = true }
 
-[tool.ruff]
+[tool.black]
 line-length = 120
