@@ -14,6 +14,9 @@ class LoginInfo(TypedDict, total=True):
 def get_auth_table() -> pd.DataFrame:
     """Get the table with the login information for the robots/users from the SQL server."""
 
+    sql_drivers = pyodbc.drivers()
+    assert "SQL Server" in sql_drivers, f"SQL Server driver not found in {sql_drivers=}"
+
     # load environment variables from .env file
     load_dotenv(override=True)
 
@@ -23,9 +26,7 @@ def get_auth_table() -> pd.DataFrame:
     cert = os.getenv("SQL_CERT")
     table = os.getenv("SQL_TABLE")
 
-    conn_str = (
-        "DRIVER={ODBC Driver 17 for SQL Server};" f"SERVER={server};" f"DATABASE={database};" "Trusted_Connection=yes;"
-    )
+    conn_str = "DRIVER={SQL Server};" f"SERVER={server};" f"DATABASE={database};" "Trusted_Connection=yes;"
 
     query = (
         f"OPEN SYMMETRIC KEY {sym_key} DECRYPTION BY CERTIFICATE {cert};"
@@ -34,7 +35,7 @@ def get_auth_table() -> pd.DataFrame:
     )
 
     # connect to the SQL server
-    conn = pyodbc.connect(conn_str)
+    conn = pyodbc.connect(conn_str, readonly=True, autocommit=False)
 
     # execute the SQL query to retrieve the login information
     df = pd.read_sql_query(query, conn)
@@ -50,7 +51,7 @@ def get_usernames() -> list[str]:
     df = get_auth_table()
 
     # find the row with the specified name and program
-    df = df.query(f"Program == 'Windows'")
+    df = df.query("Program == 'Windows'")
 
     # check if the result is as expected
     assert len(df) > 0, f"expected len larger than 0, but is {len(df)}"
