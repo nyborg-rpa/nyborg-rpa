@@ -41,9 +41,12 @@ def start_server(event: ValueChangeEventArguments):
 
 
 def copy_cell(e: GenericEventArguments):
-    if selected_cell := e.args.get("value"):
-        ui.clipboard.write(selected_cell)
-        ui.notify(f"Copied '{selected_cell}' to clipboard")
+
+    value, col_id = e.args.get("value"), e.args.get("colId")
+
+    if col_id in {"Username", "Password"}:
+        ui.notify(f"Copied {col_id} to clipboard")
+        ui.clipboard.write(value)
 
 
 @ui.page("/")
@@ -59,16 +62,23 @@ def index(client: Client):
     usernames = user_info.query("Program == 'Windows'").sort_values("Navn")["Navn"].tolist()
     servers = ["NBRPA0", "NBRPA1", "NBRPA2", "NBRPA3", "NBRPAS"]
 
-    # dropdown and button
+    # dropdown and buttons
     with ui.row(align_items="center"):
         ui.select(servers, label="Server", with_input=True, on_change=on_server_select)
         ui.select(usernames, label="User", with_input=True, on_change=on_user_select)
         ui.button("Start", on_click=start_server)
 
     # table with user info
+    cols_defs = [
+        {"field": "Navn", "filter": True},
+        {"field": "Program", "filter": False},
+        {"field": "Username"},
+        {"field": "Password", "filter": False, "sortable": False, ":valueFormatter": "params => '•'.repeat(8)"},
+    ]
+
     tbl_user_info = ui.aggrid.from_pandas(
         df=user_info,
-        options={"columnDefs": [{"field": col, "filter": (col == "Navn")} for col in user_info.columns]},
+        options={"columnDefs": cols_defs},
     ).classes("flex-1 h-full")
 
     # handler to copy cell value to clipboard on double click
@@ -76,6 +86,8 @@ def index(client: Client):
 
 
 def main():
+    # TODO: make the app run in bg + tray icon
+    # https://github.com/zauberzeug/nicegui/discussions/980
     ui.run(native=True, reload=False, reconnect_timeout=0, title="Robot Login")
 
 
