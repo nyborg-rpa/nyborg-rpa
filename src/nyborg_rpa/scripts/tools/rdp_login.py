@@ -1,10 +1,11 @@
 from nicegui import Client, app, ui
-from nicegui.events import ValueChangeEventArguments
+from nicegui.events import GenericEventArguments, ValueChangeEventArguments
 
-from nyborg_rpa.utils.auth import get_user_login_info, get_usernames
+from nyborg_rpa.utils.auth import get_auth_table, get_user_login_info
 from nyborg_rpa.utils.rdp import start_windows_rdp
 
 selected = dict()
+tbl_user_info = None  # AgGrid
 
 
 def on_server_select(event: ValueChangeEventArguments):
@@ -12,7 +13,12 @@ def on_server_select(event: ValueChangeEventArguments):
 
 
 def on_user_select(event: ValueChangeEventArguments):
-    selected["user"] = event.value
+    user = event.value
+    selected["user"] = user
+
+    # filter table to show only the selected user
+    tbl_user_info.run_grid_method("setFilterModel", {"Navn": {"filterType": "text", "type": "equals", "filter": user}})
+    tbl_user_info.run_grid_method("onFilterChanged")
 
 
 def start_server(event: ValueChangeEventArguments):
@@ -34,21 +40,39 @@ def start_server(event: ValueChangeEventArguments):
     app.shutdown()
 
 
+def copy_cell(e: GenericEventArguments):
+    if selected_cell := e.args.get("value"):
+        ui.clipboard.write(selected_cell)
+        ui.notify(f"Copied '{selected_cell}' to clipboard")
+
+
 @ui.page("/")
 def index(client: Client):
+
+    global tbl_user_info  # TODO: convert app to a class to avoid global variables
 
     # make content centered
     client.content.classes("h-screen w-screen flex justify-start items-center overflow-hidden")
 
     # load usernames from database
-    usernames = get_usernames()
+    user_info = get_auth_table().filter(items=["Navn", "Username", "Password", "Program"])
+    usernames = user_info.query("Program == 'Windows'").sort_values("Navn")["Navn"].tolist()
     servers = ["NBRPA0", "NBRPA1", "NBRPA2", "NBRPA3", "NBRPAS"]
 
-    # add ui elements
+    # dropdown and button
     with ui.row(align_items="center"):
         ui.select(servers, label="Server", with_input=True, on_change=on_server_select)
         ui.select(usernames, label="User", with_input=True, on_change=on_user_select)
         ui.button("Start", on_click=start_server)
+
+    # table with user info
+    tbl_user_info = ui.aggrid.from_pandas(
+        df=user_info,
+        options={"columnDefs": [{"field": col, "filter": (col == "Navn")} for col in user_info.columns]},
+    ).classes("flex-1 h-full")
+
+    # handler to copy cell value to clipboard on double click
+    tbl_user_info.on("cellDoubleClicked", copy_cell)
 
 
 def main():
