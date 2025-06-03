@@ -72,11 +72,12 @@ def close_item(item: dict):
 
             label = missing_item["label"]
             if label not in defaults:
-                raise ValueError(f"Missing default value for required item: {label}")
+                print(f"Skipping item '{label}' as it has no default value.")
+                return
 
             possible_value = next((pv for pv in missing_item["possibleValues"] if pv["name"] == defaults[label]), None)
             if possible_value is None:
-                print(f"Skipping item '{label}' as default value '{defaults[label]}' not found in possible values.")
+                print(f"Skipping item '{label}' as default value '{defaults[label]}' not contain possible value.")
                 return
 
             # set the value to the default
