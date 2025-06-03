@@ -126,9 +126,10 @@ def close_patient_documents(*, patient_id: int):
     resp = client.get(close_schema_link)
     pathway_data = resp.json()
     references_link = pathway_data["_links"]["pathwayReferences"]["href"]
+    references_data = client.get(references_link).json()
 
-    resp = client.get(references_link)
-    references_data = resp.json()
+    if "patientActivities" in pathway_data["_links"]:
+        raise ValueError("Patient activities link found, but not implemented.")
 
     close_all_items(item={"children": references_data})
 
