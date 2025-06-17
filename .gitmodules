@@ -1,3 +1,3 @@
 [submodule "packages/kmd-nova-client"]
 	path = packages/kmd-nova-client
-	url = git@github.com:nyborg-rpa/kmd-nova-client.git
+	url = https://github.com/nyborg-rpa/kmd-nova-client.git
