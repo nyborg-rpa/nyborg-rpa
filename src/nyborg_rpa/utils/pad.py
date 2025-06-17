@@ -32,7 +32,7 @@ def dispatch_pad_script(fn: Callable) -> None:
         if pad_script:
             with contextlib.redirect_stdout(new_target=sys.stderr):
                 res = fn(*args, **kwargs)
-                out = json.dumps(res)
+                out = json.dumps(res, default=str)
 
         else:
             out = fn(*args, **kwargs)
