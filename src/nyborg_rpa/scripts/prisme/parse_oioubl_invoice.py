@@ -85,9 +85,13 @@ def parse_oioubl_invoice(*, filepath: Path | str) -> tuple[InvoiceMetadata, list
     ydelse = re.search(r"Ydelser:\s*([^|]+)", ydelse_info).group(1).strip()
     ydelse_nr = None  # TODO: add ydelsenummer once available
 
+    # the ydelse info is typically encoded in a note on the format
+    # "Lokation::Ringvej 3a, 5800 Nyborg.Tidspunkt:03-06-2025 Kl. 10:30-11:30. Kundreference: XXXXXX-XXXX,Navn \n\xa0[Bemærk: ..."
+    # however, it can also use "Lokation:" with a single colon
     ydelse_extra_info = root.find(".//cbc:Note", ns).text
-    ydelse_lokation = re.search(r"Lokation::(.+?)\.", ydelse_extra_info).group(1)
-    ydelse_tidspunkt = re.search(r"Tidspunkt::(\d{2}-\d{2}-\d{4})", ydelse_extra_info).group(1)
+    assert ydelse_extra_info, "Could not find extra information in the invoice note."
+    ydelse_lokation = re.search(r"Lokation:{1,2}\s*(.+?)\.", ydelse_extra_info).group(1)
+    ydelse_tidspunkt = re.search(r"Tidspunkt:{1,2}\s*(\d{2}-\d{2}-\d{4})", ydelse_extra_info).group(1)
 
     metadata: InvoiceMetadata = {
         "faktura_nr": root.find(".//cbc:ID", ns).text,
