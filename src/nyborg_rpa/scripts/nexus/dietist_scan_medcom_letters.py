@@ -140,13 +140,11 @@ def find_active_organisation(patient: str, distric_ids: set, distric_tree: list)
     return found_distrikt
 
 
-def create_mail_message_2(mails: dict) -> str:
+def create_mail_message(mails: dict) -> str:
     brødtekst = """<!DOCTYPE html>
     <html>
     <body style="font-family: Arial, sans-serif; font-size: 14px; margin: 0; padding: 0;">
-    <h2 style="font-size: 16px; font-weight: bold;">Rapport: Fund af ernæringsrelaterede ord</h2>
-    <p>Hej,</p>
-    <p>Robotten har netop scannet nye breve og identificeret relevante ord i følgende dokumenter:</p>
+    <h2 style="font-size: 13px; font-weight: bold;">Robotten har netop scannet nye breve og identificeret relevante ord i følgende dokumenter:</h2>
     <table border="1" cellpadding="4" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 14px;">
         <tr style="background-color: #dddddd; font-weight: bold;">
         <td>Emne</td>
@@ -300,14 +298,10 @@ if __name__ == "__main__":
     print("checking letters in Plejeforløbsplaner")
     check_letters(Plejeforløbsplaner)
 
-    # sharepoint_client.execute_batch()
-    print("Sendt brev 1...")
-    brødtekst = create_mail_message_1(mails)
-    send_email(to_addr="<email>@nyborg.dk", subject="Brev1", html_body=brødtekst)
-
-    print("Sendt brev 2...")
-    brødtekst = create_mail_message_2(mails)
-    send_email(to_addr="<email>@nyborg.dk", subject="Brev2", html_body=brødtekst)
-
-    print("loading to sharepoint...")
-    sharepoint_client.execute_query()
+    if len(mails) > 0:
+        print("Sender brev...")
+        from_addr = os.getenv("MS_MAILBOX")
+        brødtekst = create_mail_message(mails)
+        send_email(from_addr=from_addr, to_addr="emia@nyborg.dk", subject="Rapport: Fund af ernæringsrelaterede ord", body=brødtekst)
+        print("loading to sharepoint...")
+        sharepoint_client.execute_query()
