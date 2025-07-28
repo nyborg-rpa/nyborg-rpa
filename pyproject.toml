@@ -27,6 +27,7 @@ dev = [
     "kmd-nova-client",
     "black>=25.1.0",
     "ipykernel>=6.29.5",
+    "ipywidgets>=8.1.7",
     "ruff>=0.11.8",
 ]
 
@@ -41,4 +42,7 @@ build-backend = "hatchling.build"
 kmd-nova-client = { path = "./packages/kmd-nova-client", editable = true }
 
 [tool.black]
-line-length = 120
+line-length = 200
+
+[tool.isort]
+profile = "black"
