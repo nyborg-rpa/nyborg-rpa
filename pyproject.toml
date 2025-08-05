@@ -19,6 +19,7 @@ dependencies = [
     "pyodbc>=5.2.0",
     "python-dotenv>=1.1.0",
     "pywebview>=5.4",
+    "tqdm>=4.67.1",
     "xlsxwriter>=3.2.3",
 ]
 
