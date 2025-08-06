@@ -31,28 +31,35 @@ EXPECTED_DISTRICTS: tuple[dict] = (
 
 def fetch_medcom_letters(activity_name: str) -> list[dict]:
 
+    to_date = pd.Timestamp.now()
+    from_date = to_date - pd.Timedelta(days=60)
+
+    print(f"Fetching Medcom letters for activity: {activity_name!r} from {from_date:%Y-%m-%d} to {to_date:%Y-%m-%d}")
+
+    # fetch all activity lists and find the one matching the activity_name
     resp = nexus_client.get("preferences/ACTIVITY_LIST/")
-    activity_list = resp.json()
+    activity_lists = resp.json()
 
-    for item in activity_list:
-        if item["name"] == activity_name:
-            activity_link = item["_links"]["self"]["href"]
-            break
+    try:
+        activity_link = next(item["_links"]["self"]["href"] for item in activity_lists if item["name"] == activity_name)
+    except StopIteration:
+        raise ValueError(f"Could not find activity '{activity_name}' in activity lists.")
 
+    # fetch the activity details
     resp = nexus_client.get(activity_link)
     discharge_report = resp.json()
-
     content_link = discharge_report["_links"]["content"]["href"]
-    to_date = pd.Timestamp.now()
-    from_date = to_date - pd.Timedelta(days=7)
 
+    # fetch the content links for the activity
     resp = nexus_client.get(f"{content_link}&pageSize=50&from={from_date:%Y-%m-%dT%H:%M:%S}.000Z&to={to_date:%Y-%m-%dT%H:%M:%S}.999Z")
     content_links = resp.json()
 
     letters = []
     for page in content_links["pages"]:
 
-        page_content = nexus_client.get(page["_links"]["content"]["href"]).json()
+        resp = nexus_client.get(page["_links"]["content"]["href"])
+        page_content = resp.json()
+
         for content in page_content:
             date = pd.to_datetime(content["date"], format="%Y-%m-%dT%H:%M:%S.%f%z", errors="coerce")
             medcom_id = content["_links"]["referencedObject"]["href"].split("/")[-1]
@@ -224,23 +231,17 @@ def scan_medcom_letters():
     for activity in medcom_activities:
         letters += fetch_medcom_letters(activity)
 
-    # create a set of (medcom_id, name) tuples for previously processed letters
-    prev_letters: set[tuple] = set()
-    for item in sp_prev_letters_list:
-        prev_letters |= {(item.properties["fields"].properties["Title"], item.properties["fields"].properties["Aktivitetsliste"])}
+    # find previously processed letter ids from SharePoint
+    prev_letters = {str(item.properties["fields"].properties["Title"]) for item in sp_prev_letters_list}
 
-    print(f"Found {len(letters)} letters to process and {len(prev_letters)} previously processed letters.")
+    # filter out previously processed letters
+    letters = [letter for letter in letters if letter["medcom_id"] not in prev_letters]
 
     letters_to_report = []
     for letter in (pbar := tqdm(letters, desc="Processing letters")):
 
-        # skip if letter already processed
-        letter_key = (letter["medcom_id"], letter["name"])
-        pbar.set_postfix(letter=letter_key)
-        if letter_key in prev_letters:
-            continue
-
         # fetch letter body
+        pbar.set_postfix(letter=(letter["medcom_id"], letter["name"]))
         letter_body_raw = nexus_client.get(letter["link"]).json()
         letter_body = base64.b64decode(letter_body_raw["raw"]).decode("utf-8")
 
@@ -274,7 +275,6 @@ def scan_medcom_letters():
 
     # send email if there are letters to report
     if letters_to_report:
-
         print("Sending report email...")
         send_email(
             sender=os.environ["MS_MAILBOX"],
@@ -283,9 +283,10 @@ def scan_medcom_letters():
             body=generate_report_email(letters_to_report),
         )
 
-    # save changes to SharePoint
-    # print("Saving changes to SharePoint...")
-    # sharepoint_client.execute_query()
+    # save changes to SharePoint if we processed any letters
+    if letters:
+        print("Saving changes to SharePoint...")
+        sharepoint_client.execute_query()
 
 
 if __name__ == "__main__":
