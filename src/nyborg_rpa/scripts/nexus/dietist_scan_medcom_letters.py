@@ -219,16 +219,25 @@ def scan_medcom_letters():
     )
 
     # fetch letters to check
+    letters: list[dict] = []
     medcom_activities = ("Udskrivningsrapport", "Plejeforløbsplaner")
-    prev_letters = {(item.properties["fields"].properties["Title"], item.properties["fields"].properties["Aktivitetsliste"]) for item in sp_prev_letters_list}
-    letters = [letter for activity in medcom_activities for letter in fetch_medcom_letters(activity)]
+    for activity in medcom_activities:
+        letters += fetch_medcom_letters(activity)
+
+    # create a set of (medcom_id, name) tuples for previously processed letters
+    prev_letters: set[tuple] = set()
+    for item in sp_prev_letters_list:
+        prev_letters |= {(item.properties["fields"].properties["Title"], item.properties["fields"].properties["Aktivitetsliste"])}
+
+    print(f"Found {len(letters)} letters to process and {len(prev_letters)} previously processed letters.")
 
     letters_to_report = []
-    for letter in tqdm(letters, desc="Processing letters"):
+    for letter in (pbar := tqdm(letters, desc="Processing letters")):
 
         # skip if letter already processed
-        if (letter["medcom_id"], letter["name"]) in prev_letters:
-            print(f"Skipping {letter=}")
+        letter_key = (letter["medcom_id"], letter["name"])
+        pbar.set_postfix(letter=letter_key)
+        if letter_key in prev_letters:
             continue
 
         # fetch letter body
@@ -281,10 +290,10 @@ def scan_medcom_letters():
 
 if __name__ == "__main__":
 
-    # initialize clients
-
+    # load environment variables
     load_dotenv(override=True)
 
+    # initialize clients
     login_info = get_user_login_info(
         username="API",
         program="Nexus-Drift",
