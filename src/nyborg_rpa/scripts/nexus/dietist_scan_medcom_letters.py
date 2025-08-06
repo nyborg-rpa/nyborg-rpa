@@ -277,8 +277,8 @@ def scan_medcom_letters():
 
         print("Sending report email...")
         send_email(
-            from_addr=os.environ["MS_MAILBOX"],
-            to_addr="emia@nyborg.dk",
+            sender=os.environ["MS_MAILBOX"],
+            recipients=["emia@nyborg.dk", "mandr@nyborg.dk"],
             subject="Rapport: Fund af ernæringsrelaterede ord",
             body=generate_report_email(letters_to_report),
         )
