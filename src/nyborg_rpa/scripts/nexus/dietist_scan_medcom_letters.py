@@ -32,7 +32,7 @@ EXPECTED_DISTRICTS: tuple[dict] = (
 def fetch_medcom_letters(activity_name: str) -> list[dict]:
 
     to_date = pd.Timestamp.now()
-    from_date = to_date - pd.Timedelta(days=60)
+    from_date = to_date - pd.Timedelta(days=30)
 
     print(f"Fetching Medcom letters for activity: {activity_name!r} from {from_date:%Y-%m-%d} to {to_date:%Y-%m-%d}")
 
@@ -281,6 +281,7 @@ def scan_medcom_letters():
         print("Sending report email...")
         send_email(
             sender=os.environ["MS_MAILBOX"],
+            # recipients=["emia@nyborg.dk", "mandr@nyborg.dk"],
             recipients=["emia@nyborg.dk", "mandr@nyborg.dk"],
             subject="Rapport: Fund af ernæringsrelaterede ord",
             body=generate_report_email(letters_to_report),
