@@ -181,7 +181,10 @@ def generate_report_email(letters: list[dict]) -> str:
         <td colspan="5">{district}</td>
         </tr>"""
 
-        for letter in letters_by_district[district]:
+        # sort letters within each district by patient ID first, then by date
+        sorted_letters = sorted(letters_by_district[district], key=lambda x: (x["patients_id"], -x["date"].timestamp()))
+
+        for letter in sorted_letters:
             keywords = ", ".join(letter["keywords"])
             body += f"""
             <tr>
