@@ -8,8 +8,8 @@ from office365.graph_client import GraphClient
 from tqdm.auto import tqdm
 
 from nyborg_rpa.utils.auth import get_user_login_info
+from nyborg_rpa.utils.email import send_email
 from nyborg_rpa.utils.nexus_client import NexusClient
-from nyborg_rpa.utils.send_mail import send_email
 
 sharepoint_client: GraphClient
 nexus_environment: str
