@@ -16,6 +16,8 @@ def find_employee_email(*, cpr: str) -> str | None:
     user_info = sofd_client.get_user_by_cpr(cpr=cpr)
 
     email = next((user["UserId"] for user in user_info["Users"] if "@" in user["UserId"]), None)
+    if email is None:
+        email = next((user["UserId"] for user in user_info["DisabledUsers"] if "@" in user["UserId"]), None)
 
     return email
 

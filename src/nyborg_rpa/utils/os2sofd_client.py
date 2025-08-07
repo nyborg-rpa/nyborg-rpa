@@ -44,7 +44,7 @@ class OS2sofdClient(httpx.Client):
         """
         params = {
             "$filter": f"Cpr eq '{cpr}'",
-            "$expand": "Affiliations,Users,Photo,Phones,Children,AuthorizationCodes,Substitutes",
+            "$expand": "Affiliations,Users,Photo,Phones,Children,AuthorizationCodes,Substitutes,DisabledUsers",
         }
 
         resp = self.get(url="Persons", params=params)
