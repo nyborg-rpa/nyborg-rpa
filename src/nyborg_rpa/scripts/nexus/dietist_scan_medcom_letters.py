@@ -2,6 +2,7 @@ import base64
 import os
 from collections import defaultdict
 
+import argh
 import pandas as pd
 from dotenv import load_dotenv
 from office365.graph_client import GraphClient
@@ -10,6 +11,7 @@ from tqdm.auto import tqdm
 from nyborg_rpa.utils.auth import get_user_login_info
 from nyborg_rpa.utils.email import send_email
 from nyborg_rpa.utils.nexus_client import NexusClient
+from nyborg_rpa.utils.pad import dispatch_pad_script
 
 sharepoint_client: GraphClient
 nexus_environment: str
@@ -204,7 +206,7 @@ def generate_report_email(letters: list[dict]) -> str:
     return body
 
 
-def scan_medcom_letters():
+def scan_medcom_letters_and_send_report(*, recipients: list[str]):
 
     # get organization tree info
     org_info = get_organization_tree_info(name="Hjemmepleje")
@@ -230,7 +232,7 @@ def scan_medcom_letters():
 
     # fetch letters to check
     letters: list[dict] = []
-    medcom_activities = ("Udskrivningsrapport", "Plejeforløbsplaner")
+    medcom_activities = ("Robot Udskrivningsrapport", "Plejeforløbsplaner")
     for activity in medcom_activities:
         letters += fetch_medcom_letters(activity)
 
@@ -278,11 +280,10 @@ def scan_medcom_letters():
 
     # send email if there are letters to report
     if letters_to_report:
-        print("Sending report email...")
+        print(f"Sending report email to {recipients=}...")
         send_email(
             sender=os.environ["MS_MAILBOX"],
-            # recipients=["emia@nyborg.dk", "mandr@nyborg.dk"],
-            recipients=["emia@nyborg.dk", "mandr@nyborg.dk"],
+            recipients=recipients,
             subject="Rapport: Fund af ernæringsrelaterede ord",
             body=generate_report_email(letters_to_report),
         )
@@ -293,7 +294,10 @@ def scan_medcom_letters():
         sharepoint_client.execute_query()
 
 
-if __name__ == "__main__":
+@argh.arg("--recipients", help="List of email recipients for the report.", nargs="*")
+def dietist_scan_medcom_letters(*, recipients: list[str]):
+
+    global sharepoint_client, nexus_client, nexus_environment
 
     # load environment variables
     load_dotenv(override=True)
@@ -317,5 +321,9 @@ if __name__ == "__main__":
         client_secret=os.getenv("MS_GRAPH_CLIENT_SECRET"),
     )
 
-    # scan Medcom letters for keywords
-    scan_medcom_letters()
+    # scan Medcom letters for keywords and send report
+    scan_medcom_letters_and_send_report(recipients=recipients)
+
+
+if __name__ == "__main__":
+    dispatch_pad_script(fn=dietist_scan_medcom_letters)
