@@ -66,7 +66,7 @@ def parse_oioubl_invoice(*, filepath: Path | str) -> tuple[InvoiceMetadata, list
             {
                 "vare_nr": line.find(".//cac:SellersItemIdentification//cbc:ID", ns).text,
                 "beskrivelse": line.find(".//cac:Item//cbc:Name", ns).text,
-                "vare_beskrivelse": line.find(".//cac:Item//cbc:Description", ns).text,
+                "vare_beskrivelse": getattr(line.find(".//cac:Item//cbc:Description", ns), "text", ""),
                 "note": line.find(".//cbc:Note", ns).text,
                 "antal": float(line.find("cbc:InvoicedQuantity", ns).text),
                 "enhed": line.find("cbc:InvoicedQuantity", ns).attrib["unitCode"],
