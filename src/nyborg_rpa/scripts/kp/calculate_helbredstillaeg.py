@@ -151,6 +151,10 @@ def calculate_helbredstillaeg_for_case(data: HelbredstillaegData) -> dict:
     output["treatments"] = treatments  # save for later
     for treatment in treatments:
 
+        if treatment["Pris"] is None:
+            output["status_message"] = "Indtastet behandlinger mangler beløb"
+            return output
+
         price = float(treatment["Pris"])
         treatment_name = str(treatment["Behandling"])
         output["total_price"] += price
@@ -246,7 +250,8 @@ def calculate_helbredstillaeg_for_case(data: HelbredstillaegData) -> dict:
 
     output["found_cases"] = kp_cases.to_dict(orient="records")
     if len(kp_cases) != 1:
-        raise ValueError(f"Found >1 KP cases for {treatment_type} on {treatment_date:%Y-%m-%d}: {list(kp_cases['Titel'])}")
+        output["status_message"] = "Der er fundet flere relevante sager"
+        return output
 
     # check all previous payments to see if the current case has been paid out before
     print("checking if case has been paid out before...")
