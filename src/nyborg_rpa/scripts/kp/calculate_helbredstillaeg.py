@@ -9,6 +9,10 @@ import argh
 import pandas as pd
 
 from nyborg_rpa.utils.pad import dispatch_pad_script
+from nyborg_rpa.utils.sharepoint import (
+    get_sharepoint_item_by_id,
+    get_sharepoint_list_items,
+)
 
 
 class HelbredstillaegData(TypedDict):
@@ -19,8 +23,13 @@ class HelbredstillaegData(TypedDict):
     kp_sagsoversigt_df: pd.DataFrame
 
 
-def read_json(path: str) -> dict:
+def read_json(path: Path | str) -> dict:
     """Read JSON file and return its content."""
+
+    path = Path(path).resolve()
+    if not path.exists():
+        return {}
+
     with open(path, "r", encoding="utf-8-sig") as file:
         return json.load(file)
 
@@ -33,43 +42,60 @@ def fetch_data(*, sharepoint_id: int) -> HelbredstillaegData:
     base_path = Path(f"J:/Drift/11. Helbredstillæg/{sharepoint_id}")
     assert base_path.exists(), f"{base_path=} does not exist."
 
-    # load data into a dictionary for the given item_id
-    data = {
-        "sharepoint_item": read_json(base_path / "sharepoint.json"),
-        "sharepoint_treatments": read_json(base_path / "sharepoint_treatments.json"),
-        "kp": {
+    # Fetch from SharePoint item by ID
+    sharepoint_item = get_sharepoint_item_by_id(
+        site="https://nyborg365.sharepoint.com/sites/RPADrift",
+        list_="01.11.02 Helbredstillæg",
+        id_=str(sharepoint_id),
+    )
+
+    sharepoint_treatments = get_sharepoint_list_items(
+        site="https://nyborg365.sharepoint.com/sites/RPADrift",
+        list_="Helbredstillæg Behandlinger",
+    )
+
+    kp = None
+    if (base_path / "kp_pensionsfakta.json").exists():
+        kp = {
             "pensionsfakta": read_json(base_path / "kp_pensionsfakta.json"),
             "personoplysninger": read_json(base_path / "kp_personoplysninger.json"),
             "sagsoversigt": read_json(base_path / "kp_sagsoversigt.json"),
             "udbetaling": read_json(base_path / "kp_udbetaling.json"),
-        },
+        }
+
+    # load data into a dictionary for the given item_id
+    data = {
+        "sharepoint_item": sharepoint_item,
+        "sharepoint_treatments": sharepoint_treatments,
+        "kp": kp,
     }
 
     # parse available treatments into a DataFrame
     data["sharepoint_treatments_df"] = pd.DataFrame(
         {
-            "ID": item["ID"],
-            "Behandlingsform": item["Behandlingsform"]["Value"],
+            "ID": item["id"],
+            "Behandlingsform": item["Behandlingsform"],
             "Behandling": item["Behandling"],
             "MaksPris": item["MaksPris"],
             "Procent": item["Procent"],
-            "År": item["OData__x00c5_r"]["Value"],
-            "Grupper": [x["Value"] for x in item["Grupper"]],
+            "År": item["_x00c5_r"],
+            "Grupper": [x for x in item["Grupper"]],
         }
-        for item in data["sharepoint_treatments"]["value"]
+        for item in data["sharepoint_treatments"]
     )
 
     # parse KP sagsoversigt data into a DataFrame
-    data["kp_sagsoversigt_df"] = pd.DataFrame(
-        {
-            "Titel": item["Titel"],
-            "Sagstype": item["Sagstype"],
-            "Beviling start": pd.to_datetime(item["Beviling start"], format="%Y-%m-%d", errors="coerce"),
-            "Beviling slut": pd.to_datetime(item["Beviling slut"], format="%Y-%m-%d", errors="coerce"),
-            "Status": item["Status"],
-        }
-        for item in data["kp"]["sagsoversigt"]
-    )
+    if kp:
+        data["kp_sagsoversigt_df"] = pd.DataFrame(
+            {
+                "Titel": item["Titel"],
+                "Sagstype": item["Sagstype"],
+                "Beviling start": pd.to_datetime(item["Beviling start"], format="%Y-%m-%d", errors="coerce"),
+                "Beviling slut": pd.to_datetime(item["Beviling slut"], format="%Y-%m-%d", errors="coerce"),
+                "Status": item["Status"],
+            }
+            for item in data["kp"]["sagsoversigt"]
+        )
 
     return data
 
@@ -96,6 +122,8 @@ def calculate_helbredstillaeg_for_case(data: HelbredstillaegData) -> dict:
     # where case is a dict with all the necessary data and is updated with each step
     # with fetch_case(), fetch_available_treatments(), and fetch_kp_data() functions
 
+    treatments: list[dict] = json.loads(data["sharepoint_item"]["Behandlinger"])
+
     output = {
         "status": False,  # can we payout the case?
         "status_message": "",
@@ -103,9 +131,17 @@ def calculate_helbredstillaeg_for_case(data: HelbredstillaegData) -> dict:
         "health_pct": 0.0,
         "insurance_group": None,
         "extended": False,
+        "treatments": treatments,
     }
 
     # #️ STEP 1
+    # check if data found from kp
+
+    if not data["kp"]:
+        output["status_message"] = "Robotten kunne ikke finde borger i KP, og er derfor sendt til manuel behandling"
+        return output
+
+    # #️ STEP 2
     # check insurance group and treatment date
 
     # parse insurance group from KP and check if it is available
@@ -119,7 +155,7 @@ def calculate_helbredstillaeg_for_case(data: HelbredstillaegData) -> dict:
     # check treatment date
     print("checking treatment date...")
     today = pd.Timestamp.now()
-    treatment_date = pd.to_datetime(str(data["sharepoint_item"]["Behandlingsdato"]), format="%Y-%m-%d")
+    treatment_date = pd.to_datetime(str(data["sharepoint_item"]["Behandlingsdato"]), format="%Y-%m-%dT%H:%M:%SZ")
 
     # is the treatment date in the future?
     if treatment_date > today:
@@ -131,12 +167,11 @@ def calculate_helbredstillaeg_for_case(data: HelbredstillaegData) -> dict:
         output["status_message"] = "Behandlingsdato er ældre end 3 år!"
         return output
 
-    # #️⃣ STEP 2
+    # #️⃣ STEP 3
     # calcuate the insurance part for each treatment
 
     # parse treatment data
-    treatments: list[dict] = json.loads(data["sharepoint_item"]["Behandlinger"])
-    treatment_type = str(data["sharepoint_item"]["Behandlingsform"]["Value"])
+    treatment_type = str(data["sharepoint_item"]["Behandlingsform"])
     has_ydernummer = bool(data["sharepoint_item"]["HarYdernummer_x003f_"])
     has_sygesikringsandel = bool(data["sharepoint_item"]["HarSygesikringsandel_x003f_"])
 
@@ -148,7 +183,6 @@ def calculate_helbredstillaeg_for_case(data: HelbredstillaegData) -> dict:
 
     # calculate total price
     print(f"checking {len(treatments)} treatment(s) for {treatment_type} on {treatment_date:%Y-%m-%d}...")
-    output["treatments"] = treatments  # save for later
     for treatment in treatments:
 
         if treatment["Pris"] is None:
@@ -189,7 +223,7 @@ def calculate_helbredstillaeg_for_case(data: HelbredstillaegData) -> dict:
         treatment["Tilskud"] = insurance_part
         output["total_price"] -= insurance_part
 
-    # #️ STEP 3
+    # #️ STEP 4
     # apply health allowance percentage
 
     # find the health allowance percentage that is valid for the treatment date
@@ -212,7 +246,7 @@ def calculate_helbredstillaeg_for_case(data: HelbredstillaegData) -> dict:
         output["status_message"] = "Borgers helbredsprocent er 0"
         return output
 
-    # #️ STEP 4
+    # #️ STEP 5
     # check if the treatment is already paid out
 
     # find related KP cases based on treatment type and date
@@ -238,9 +272,9 @@ def calculate_helbredstillaeg_for_case(data: HelbredstillaegData) -> dict:
         " and "
         f"Sagstype.str.lower().str.contains({case_type_keyword!r}, regex=True)"
         " and "
-        f"`Beviling start` < '{treatment_date}'"
+        f"`Beviling start` <= '{treatment_date}'"
         " and "
-        f"(`Beviling slut`.isna() or `Beviling slut` > '{treatment_date}')",
+        f"(`Beviling slut`.isna() or `Beviling slut` >= '{treatment_date}')",
         engine="python",
     )
 
@@ -278,7 +312,7 @@ def calculate_helbredstillaeg_for_case(data: HelbredstillaegData) -> dict:
             output["status_message"] = "Måske tidligere udbetalt"
             return output
 
-    # #️ STEP 5
+    # #️ STEP 6
     # if we reach this point, it means that the treatment is valid and not paid out before
 
     # everything is fine, we can proceed with the action
@@ -310,6 +344,6 @@ if __name__ == "__main__":
     dispatch_pad_script(fn=calculate_helbredstillaeg)
 
     # example usage
-    # sharepoint_id = 8
+    # sharepoint_id =
     # output = calculate_helbredstillaeg(sharepoint_id=sharepoint_id)
     # print(output)
