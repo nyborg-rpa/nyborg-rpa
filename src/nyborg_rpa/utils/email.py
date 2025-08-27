@@ -1,8 +1,34 @@
+import base64
+import mimetypes
 import os
-from typing import Literal
+from pathlib import Path
+from typing import Iterable, Literal
 
 import requests
 from dotenv import load_dotenv
+
+# Microsoft Graph har en praktisk grænse på ca. 3 MB pr. fileAttachment.
+# Større filer kræver upload session (resumable upload).
+GRAPH_SMALL_ATTACHMENT_MAX = 3 * 1024 * 1024  # 3 MB
+
+
+def _file_to_graph_attachment(path: Path) -> dict:
+    if not path.exists() or not path.is_file():
+        raise FileNotFoundError(f"Filen findes ikke: {path}")
+    size = path.stat().st_size
+    if size > GRAPH_SMALL_ATTACHMENT_MAX:
+        raise ValueError(f"Vedhæftning er for stor til 'fileAttachment' ({size} bytes). " "Brug upload session til store filer.")
+    with path.open("rb") as f:
+        content_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+    # MIME-type er ikke påkrævet af Graph til fileAttachment, men fint at sende som hint.
+    mime, _ = mimetypes.guess_type(str(path))
+    return {
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        "name": path.name,
+        "contentType": mime or "application/octet-stream",
+        "contentBytes": content_b64,
+    }
 
 
 def send_email(
@@ -12,6 +38,7 @@ def send_email(
     subject: str = "",
     body: str = "",
     body_type: Literal["Text", "Html"] = "Html",
+    attachments: Iterable[str] | None = None,
 ):
 
     assert body_type in ["Text", "Html"], "body_type must be either 'Text' or 'Html'"
@@ -40,12 +67,21 @@ def send_email(
         "Content-Type": "application/json",
     }
 
+    message: dict = {
+        "subject": subject,
+        "body": {"contentType": body_type, "content": body},
+        "toRecipients": [{"emailAddress": {"address": r}} for r in recipients],
+    }
+
+    # Tilføj vedhæftninger hvis angivet
+    if attachments:
+        att_objs = []
+        for p in attachments:
+            att_objs.append(_file_to_graph_attachment(Path(p)))
+        message["attachments"] = att_objs
+
     body = {
-        "message": {
-            "subject": subject,
-            "body": {"contentType": body_type, "content": body},
-            "toRecipients": [{"emailAddress": {"address": recipient}} for recipient in recipients],
-        },
+        "message": message,
         "saveToSentItems": True,
     }
 
