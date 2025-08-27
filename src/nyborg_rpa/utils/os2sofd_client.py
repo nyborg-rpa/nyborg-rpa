@@ -27,7 +27,7 @@ class OS2sofdClient(httpx.Client):
             api_key = os.environ["OS2SOFD_API_KEY"]
 
         super().__init__(
-            base_url=f"https://{kommune}.sofd.io/odata/",
+            base_url=f"https://{kommune}.sofd.io",
             headers={"ApiKey": api_key},
             **kwargs,
         )
@@ -47,7 +47,7 @@ class OS2sofdClient(httpx.Client):
             "$expand": "Affiliations,Users,Photo,Phones,Children,AuthorizationCodes,Substitutes,DisabledUsers",
         }
 
-        resp = self.get(url="Persons", params=params)
+        resp = self.get(url="odata/Persons", params=params)
         resp.raise_for_status()
 
         data = resp.json()
