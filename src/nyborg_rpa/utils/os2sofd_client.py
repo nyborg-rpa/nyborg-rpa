@@ -14,10 +14,10 @@ class OS2sofdClient(httpx.Client):
         **kwargs,
     ):
         """
-        Initialize the SOFDClient with API key and base URL.
+        Initialize the OS2sofdClient.
 
         Args:
-            api_key: API key for SOFD. If not given, pulled from OS2SOFD_API_KEY in .env.
+            api_key: API key for SOFD. Defaults to `OS2SOFD_API_KEY` environment variable if not provided.
             kommune: The `{kommune}.sofd.io` domain to connect to.
             kwargs: Extra arguments passed to httpx.Client.
         """
@@ -40,8 +40,9 @@ class OS2sofdClient(httpx.Client):
             cpr: The CPR number of the user.
 
         Returns:
-            dict: User information if found, otherwise None.
+            Dict with user information if found, otherwise None.
         """
+
         params = {
             "$filter": f"Cpr eq '{cpr}'",
             "$expand": "Affiliations,Users,Photo,Phones,Children,AuthorizationCodes,Substitutes,DisabledUsers",
@@ -63,8 +64,9 @@ class OS2sofdClient(httpx.Client):
             username: The username of the user.
 
         Returns:
-            dict: User information if found, otherwise None.
+            Dict with user information if found, otherwise None.
         """
+
         params = {
             "$filter": (f"Users/any(u: u/UserId eq '{username}') " f"or DisabledUsers/any(d: d/UserId eq '{username}')"),
             "$top": 1,
@@ -83,9 +85,13 @@ class OS2sofdClient(httpx.Client):
         """
         Fetch all organization data.
 
+        Args:
+            uuid: The UUID of the organization.
+
         Returns:
-            list[dict]: List of organizations.
+            Dict with organization information if found, otherwise None.
         """
+
         params = {
             "$filter": f"uuid eq '{uuid}'",
             # "$select": "Name,Uuid,Manager,Addresses,phones",
@@ -104,8 +110,9 @@ class OS2sofdClient(httpx.Client):
         Fetch all organizations.
 
         Returns:
-            list[dict]: List of organizations.
+            List of organizations.
         """
+
         params = {
             # "$select": "Name,Uuid,Manager,Addresses,phones",
             "$expand": "Manager,Addresses,phones",
@@ -118,16 +125,18 @@ class OS2sofdClient(httpx.Client):
 
         return data.get("value", [])
 
-    def post_organization_manager(self, organization_uuid: str, user_uuid: str):
+    def post_organization_manager(
+        self,
+        *,
+        organization_uuid: str,
+        user_uuid: str,
+    ):
         """
         Assign a user as the manager of an organization.
 
         Args:
             organization_uuid: The UUID of the organization.
             user_uuid: The UUID of the user to assign as manager.
-
-        Returns:
-            dict: Response from the server.
         """
 
         resp = self.post(
@@ -139,29 +148,29 @@ class OS2sofdClient(httpx.Client):
         )
         resp.raise_for_status()
 
-    def patch_organization(self, uuid: str, json: dict):
+    def patch_organization(
+        self,
+        *,
+        uuid: str,
+        json: dict,
+    ) -> bool:
         """
-        Assign new primary address of an organization.
+        Update organization details and return whether data was changed.
 
         Args:
-            organization_uuid: The UUID of the organization.
-            json: dict of changes
+            uuid: The UUID of the organization.
+            json: The JSON data to update the organization with.
+
+        Returns:
+            Boolean indicating if data was changed.
         """
 
         resp = self.patch(
             url=f"api/v2/orgUnits/{uuid}",
             json=json,
         )
-        if resp.status_code == 304:
-            status = False
-        elif resp.status_code == 200:
-            status = True
-        else:
-            resp.raise_for_status()
 
-        return status
+        resp.raise_for_status()
+        did_data_change = resp.status_code in {200, 204}
 
-
-if __name__ == "__main__":
-    # Example usage
-    client = OS2sofdClient(kommune="nyborg")
+        return did_data_change
