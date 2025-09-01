@@ -24,22 +24,6 @@ def parse_address_details(address: str) -> dict:
     return details
 
 
-def get_organisation_parrent_path(organisation: dict) -> str:
-    """Will get organisation parrent path"""
-    if organisation["ParentUuid"]:
-        parrent_orgination = os2_client.get_organization_by_uuid(uuid=organisation["ParentUuid"])
-        parrent_name = parrent_orgination["Name"]
-        next_parrent = get_organisation_parrent_path(parrent_orgination)
-        if next_parrent == parrent_name:
-            path = f"{parrent_name}"
-        else:
-            path = f"{next_parrent} > {parrent_name}"
-    else:
-        path = organisation["Name"]
-
-    return path
-
-
 def to_excel(*, df: pd.DataFrame, filepath: str, sheet_name: str):
     """Saves DataFrame as native Excel table autofitting columns"""
 
@@ -189,8 +173,8 @@ def los_integration(*, mail_recipients: list[str], working_dir: str):
     rows = []
     for organisation in no_match_organisations:
         if organisation["ParentUuid"]:
-            parrent_path = get_organisation_parrent_path(organisation=organisation)
-            rows += [{"Afdeling": organisation["Name"], "Overliggende afdelinger": parrent_path}]
+            org_path = os2_client.get_organization_path(organisation, separator=" > ")
+            rows += [{"Afdeling": organisation["Name"], "Overliggende afdelinger": org_path}]
 
     rows_sorted = sorted(rows, key=lambda x: x["Overliggende afdelinger"])
 

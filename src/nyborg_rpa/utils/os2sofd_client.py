@@ -125,6 +125,38 @@ class OS2sofdClient(httpx.Client):
 
         return data.get("value", [])
 
+    def get_organization_path(
+        self,
+        organization: dict | str,
+        *,
+        separator: str = "/",
+    ) -> str:
+        """
+        Get the full path of an organization by traversing its parent organizations.
+
+        Args:
+            organization: The organization dict or its UUID.
+            separator: The separator to use between organization names in the path.
+
+        Returns:
+            The full path of the organization as a string.
+        """
+
+        # fetch organization if only uuid is given
+        if isinstance(organization, str):
+            organization: dict = self.get_organization_by_uuid(organization)
+            if not organization:
+                raise ValueError(f"Organization with UUID {organization!r} not found.")
+
+        # traverse parents to build path
+        orgs = [organization]
+        while parent_uuid := orgs[-1].get("ParentUuid"):
+            orgs += [self.get_organization_by_uuid(uuid=parent_uuid)]
+
+        path = separator.join(reversed([org["Name"] for org in orgs]))
+
+        return path
+
     def post_organization_manager(
         self,
         *,
