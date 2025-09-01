@@ -11,20 +11,17 @@ from nyborg_rpa.utils.os2sofd_client import OS2sofdClient
 os2_client: OS2sofdClient
 
 
-def get_street_info(*, street: str) -> dict:
-    """Will split street string into dict"""
-    # Split by ,
-    parts = street.split(",")
-    street = parts[0].strip()
+def parse_address_details(address: str) -> dict:
+    """Parse an address on the format `"Street name 12, 5000 Odense C"` into a `{street, zip_code, city}` dict."""
 
-    # Split by space
-    zip_city = parts[len(parts) - 1].strip().split(" ", 1)
-    zip_code = zip_city[0]
-    city = zip_city[1]
+    parts = address.split(",")
+    details = {
+        "street": parts[0].strip(),
+        "zip_code": parts[-1].strip().split(" ", maxsplit=1)[0],
+        "city": parts[-1].strip().split(" ", maxsplit=1)[1],
+    }
 
-    output = {"street": street, "zip_code": zip_code, "city": city}
-
-    return output
+    return details
 
 
 def get_organisation_parrent_path(organisation: dict) -> str:
@@ -158,15 +155,16 @@ def los_integration(*, mail_recipients: list[str], working_dir: str):
                     print(f"Failed to set manager: {e}")
 
             # #️ STEP 2
-            # Modifi address and pnr to organisation
-            address_info = get_street_info(street=match["adresse"].values[0])
+            # Modify address and pnr to organisation
+            address = str(match["adresse"].values[0])
+            address_details = parse_address_details(address)
             post_addresses = [
                 {
                     "master": "SOFD",
                     "masterId": f"a{organisation["Uuid"]}",
-                    "street": address_info["street"],
-                    "postalCode": address_info["zip_code"],
-                    "city": address_info["city"],
+                    "street": address_details["street"],
+                    "postalCode": address_details["zip_code"],
+                    "city": address_details["city"],
                     "localname": "",
                     "country": "Danmark",
                     "addressProtected": False,
@@ -250,4 +248,9 @@ def los_integration(*, mail_recipients: list[str], working_dir: str):
 
 
 if __name__ == "__main__":
+
+    # test parse_address_details
+    for address in ["Torvet 1, 5800 Nyborg", "Nørregade 12, 5000 Odense C", "Hovedgaden 5, Mellemby, 6000 Kolding"]:
+        print(f"Parsed {address=!r} into {parse_address_details(address)}")
+
     los_integration(mail_recipients=["emia@nyborg.dk"], working_dir=r"C:\Users\emia\Downloads")
