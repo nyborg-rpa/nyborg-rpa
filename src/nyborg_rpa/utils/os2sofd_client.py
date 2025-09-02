@@ -95,7 +95,7 @@ class OS2sofdClient(httpx.Client):
         params = {
             "$filter": f"uuid eq '{uuid}'",
             # "$select": "Name,Uuid,Manager,Addresses,phones",
-            "$expand": "Manager,Addresses,phones",
+            "$expand": "Manager,Addresses,phones,Tags",
         }
 
         resp = self.get(url="odata/OrgUnits/", params=params)
@@ -115,7 +115,7 @@ class OS2sofdClient(httpx.Client):
 
         params = {
             # "$select": "Name,Uuid,Manager,Addresses,phones",
-            "$expand": "Manager,Addresses,phones",
+            "$expand": "Manager,Addresses,phones,Tags",
         }
 
         resp = self.get(url="odata/OrgUnits", params=params)
