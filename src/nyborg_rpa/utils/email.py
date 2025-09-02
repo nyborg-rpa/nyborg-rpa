@@ -7,26 +7,28 @@ from typing import Iterable, Literal
 import requests
 from dotenv import load_dotenv
 
-# Microsoft Graph har en praktisk grænse på ca. 3 MB pr. fileAttachment.
-# Større filer kræver upload session (resumable upload).
-GRAPH_SMALL_ATTACHMENT_MAX = 3 * 1024 * 1024  # 3 MB
+EMAIL_ATTACHMENT_MAX_SIZE_BYTES = 3 * 1024 * 1024  # 3 MB
+"""Microsoft Graph file attachment file size limit."""
 
 
-def _file_to_graph_attachment(path: Path) -> dict:
-    if not path.exists() or not path.is_file():
-        raise FileNotFoundError(f"Filen findes ikke: {path}")
-    size = path.stat().st_size
-    if size > GRAPH_SMALL_ATTACHMENT_MAX:
-        raise ValueError(f"Vedhæftning er for stor til 'fileAttachment' ({size} bytes). " "Brug upload session til store filer.")
-    with path.open("rb") as f:
-        content_b64 = base64.b64encode(f.read()).decode("utf-8")
+def convert_file_to_graph_attachment(filepath: Path | str) -> dict:
 
-    # MIME-type er ikke påkrævet af Graph til fileAttachment, men fint at sende som hint.
-    mime, _ = mimetypes.guess_type(str(path))
+    filepath = Path(filepath)
+    if not filepath.exists() or not filepath.is_file():
+        raise FileNotFoundError(f"The file {filepath.as_posix()!r} does not exist.")
+
+    filesize = filepath.stat().st_size
+    if filesize > EMAIL_ATTACHMENT_MAX_SIZE_BYTES:
+        raise ValueError(f"The file {filepath.as_posix()!r} ({filesize} bytes) exceeds the maximum allowed size of {EMAIL_ATTACHMENT_MAX_SIZE_BYTES} bytes.")
+
+    # read file, encode to base64, and infer mime type
+    content_b64 = base64.b64encode(filepath.read_bytes()).decode("utf-8")
+    mime, _ = mimetypes.guess_type(filepath)
+
     return {
         "@odata.type": "#microsoft.graph.fileAttachment",
-        "name": path.name,
-        "contentType": mime or "application/octet-stream",
+        "name": filepath.name,
+        "contentType": mime or "application/octet-stream",  # not required, but good to have
         "contentBytes": content_b64,
     }
 
@@ -38,52 +40,59 @@ def send_email(
     subject: str = "",
     body: str = "",
     body_type: Literal["Text", "Html"] = "Html",
-    attachments: Iterable[str] | None = None,
+    attachments: Iterable[Path | str] | None = None,
 ):
 
     assert body_type in ["Text", "Html"], "body_type must be either 'Text' or 'Html'"
     assert isinstance(recipients, list) and all(isinstance(r, str) for r in recipients), "Recipients must be a list of strings"
     assert isinstance(sender, str), "Sender must be a string"
 
+    # load environment variables
     load_dotenv(override=True)
 
     tenant_id = os.getenv("MS_GRAPH_TENANT_ID")
     client_id = os.getenv("MS_GRAPH_CLIENT_ID")
     client_secret = os.getenv("MS_GRAPH_CLIENT_SECRET")
 
-    url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
-    data = {
-        "grant_type": "client_credentials",
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "scope": "https://graph.microsoft.com/.default",
-    }
+    assert tenant_id, "Environment variable MS_GRAPH_TENANT_ID is not set"
+    assert client_id, "Environment variable MS_GRAPH_CLIENT_ID is not set"
+    assert client_secret, "Environment variable MS_GRAPH_CLIENT_SECRET is not set"
 
-    response = requests.post(url, data=data)
-    access_token = response.json().get("access_token")
+    # fetch access token
+    resp = requests.post(
+        url=f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
+        data={
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "scope": "https://graph.microsoft.com/.default",
+        },
+    )
 
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
+    resp.raise_for_status()
+    access_token = resp.json()["access_token"]
 
-    message: dict = {
+    # construct email message
+    message = {
         "subject": subject,
         "body": {"contentType": body_type, "content": body},
         "toRecipients": [{"emailAddress": {"address": r}} for r in recipients],
     }
 
-    # Tilføj vedhæftninger hvis angivet
     if attachments:
-        att_objs = []
-        for p in attachments:
-            att_objs.append(_file_to_graph_attachment(Path(p)))
-        message["attachments"] = att_objs
+        message["attachments"] = [convert_file_to_graph_attachment(f) for f in attachments]
 
-    body = {
-        "message": message,
-        "saveToSentItems": True,
-    }
-
-    resp = requests.post(url=f"https://graph.microsoft.com/v1.0/users/{sender}/sendMail", headers=headers, json=body)
+    # send email
+    resp = requests.post(
+        url=f"https://graph.microsoft.com/v1.0/users/{sender}/sendMail",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "message": message,
+            "saveToSentItems": True,
+        },
+    )
     resp.raise_for_status()
+    print(f"Sent email to {', '.join(recipients)} from {sender=!r} with {subject=!r}.")
