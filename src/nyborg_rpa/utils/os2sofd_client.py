@@ -178,7 +178,9 @@ class OS2sofdClient(httpx.Client):
                 "managerUuid": user_uuid,
             },
         )
-        resp.raise_for_status()
+
+        if str(resp.status_code).startswith(("4", "5")):
+            resp.raise_for_status()
 
     def patch_organization(
         self,
@@ -202,7 +204,9 @@ class OS2sofdClient(httpx.Client):
             json=json,
         )
 
-        resp.raise_for_status()
+        if str(resp.status_code).startswith(("4", "5")):
+            resp.raise_for_status()
+
         did_data_change = resp.status_code in {200, 204}
 
         return did_data_change
