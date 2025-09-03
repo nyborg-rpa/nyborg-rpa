@@ -227,44 +227,20 @@ def los_integration(*, mail_recipients: list[str], working_dir: str):
         sheet_name="LOS Fejlliste",
     )
 
-    # ️ build and send email with attachment
-    html_body = """
-        <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; line-height:1.45;">
-        <h2 style="margin:0 0 8px;">Rapport: LOS integration OS2sofd - Fejlliste</h2>
-        <p>Hej,</p>
-        <p>
-            Vedhæftet finder du <strong>los_integration_error_list.xlsx</strong> med afdelinger,
-            som ikke kunne matches.
-        </p>
-
-        <h3 style="margin:16px 0 6px;">Hvad indeholder rapporten?</h3>
-        <ul style="margin:0 0 12px 20px;">
-            <li>Kolonnen <em>Afdeling</em> - navnet på afdelingen i OS2sofd, der ikke fandt et match i LOS.</li>
-            <li>Kolonnen <em>Overliggende afdelinger</em> - hierarkisk sti for at lette den manuelle lokalisering.</li>
-        </ul>
-
-        <h3 style="margin:16px 0 6px;">Hvad kan man gøre?</h3>
-        <ul style="margin:0 0 12px 20px;">
-            <li>Ret afdelingens navn i SD eller LOS arket, således afdeligen matcher.</li>
-            <li>Kontakt RPA teamet for at tilføje afdeling til blacklisten, således integration undtager afdelingen <em>Bruges hvis det er en afdeling, som er udenfor LOS arket</em></li>
-        </ul>
-
-        <p style="margin:12px 0 0;">
-            Kontakt gerne RPA/Integrationsteamet hvis noget ser forkert ud.
-        </p>
-
-        <hr style="border:none;border-top:1px solid #ddd;margin:16px 0;">
-        <p style="font-size:12px;color:#666;margin:0;">
-            Denne mail er genereret automatisk af LOS-integrationens natlige kørsel.
-        </p>
-        </div>
-        """
+    typography_style = "font-family: Arial, sans-serif; font-size: 12px"
+    body = f"""<!DOCTYPE html>
+    <html>
+    <body style="margin:0; padding:0; {typography_style}; line-height:1.4;">
+    <p>Vedhæftet finder du <strong>los_integration_error_list.xlsx</strong> med afdelinger, som ikke kunne matches i LOS.</p>
+    <p>Venlig hilsen,<br>Robotten</p>
+    </body>
+    </html>"""
 
     send_email(
-        sender=os.getenv("MS_MAILBOX"),
+        sender=os.environ["MS_MAILBOX"],
         recipients=mail_recipients,
         subject="Rapport: LOS integration OS2sofd - Fejlliste",
-        body=html_body,
+        body=body,
         attachments=[working_dir / "los_integration_error_list.xlsx"],
     )
 
