@@ -139,14 +139,30 @@ def los_integration(*, mail_recipients: list[str], working_dir: str):
     orgs_without_los_match = []
     for org in tqdm(organizations, total=len(organizations), desc="Updating OS2sofd"):
 
+        # an "rpa-override" tag without value will skip the organization or
+        # use value to match on instead of the actual name
+        has_override_tag = any(tag["Tag"] == "rpa-override" for tag in org.get("Tags", []))
+        override_value = next((tag["CustomValue"] for tag in org.get("Tags", []) if tag["Tag"] == "rpa-override"), None)
+
+        if has_override_tag and not override_value:
+            tqdm.write(f"Skipping {org["Name"]!r} due to rpa-override tag without value.")
+            continue
+
+        if override_value:
+            tqdm.write(f"Using override {org["Name"]!r} → {override_value!r}.")
+
+        # add Source field to indicate where the name came from
+        org_name = override_value or org["Name"]
+        org["Source"] = "RPA Override" if override_value else "LOS"
+
         # match organization from OS2sofd with LOS data on name
-        matches = los_df.query(f"Afdeling == '{org['Name']}'").drop_duplicates()
+        matches = los_df.query(f"Afdeling == '{org_name}'").drop_duplicates()
         if matches.empty:
             orgs_without_los_match += [org]
             continue
 
         elif len(matches) > 1:
-            raise ValueError(f"Multiple matches for {org['Name']=!r}")
+            raise ValueError(f"Multiple matches for {org_name!r}")
 
         # extract the only row
         row = matches.iloc[0]
@@ -160,7 +176,7 @@ def los_integration(*, mail_recipients: list[str], working_dir: str):
             )
 
         else:
-            tqdm.write(f"No leader found for {org['Name']}, skipping manager update.")
+            tqdm.write(f"No leader found for {org_name!r}, skipping manager update.")
 
         # parse address and pnr from LOS data
         # and patch organization with new address and pnr
@@ -181,7 +197,7 @@ def los_integration(*, mail_recipients: list[str], working_dir: str):
         ]
 
         if not row["p-nummer"]:
-            tqdm.write(f"No p-nummer found for {org['Name']}, setting to 0.")
+            tqdm.write(f"No p-nummer found for {org_name!r}, setting to 0.")
 
         did_modify = os2_client.patch_organization(
             uuid=org["Uuid"],
@@ -201,7 +217,7 @@ def los_integration(*, mail_recipients: list[str], working_dir: str):
     for org in orgs_without_los_match:
         if org["ParentUuid"]:
             org_path = os2_client.get_organization_path(org, separator=" > ")
-            rows += [{"Afdeling": org["Name"], "Overliggende afdelinger": org_path}]
+            rows += [{"Afdeling": org["Name"], "Kilde": org["Source"], "Overliggende afdelinger": org_path}]
 
     df_los_mismatches = pd.DataFrame(rows).sort_values(by="Overliggende afdelinger")
 
