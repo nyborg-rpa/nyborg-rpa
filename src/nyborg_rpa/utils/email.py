@@ -95,4 +95,4 @@ def send_email(
         },
     )
     resp.raise_for_status()
-    print(f"Sent email to {', '.join(recipients)} from {sender=!r} with {subject=!r}.")
+    print(f"Sent email to {recipients} from {sender=!r} with {subject=!r}.")
