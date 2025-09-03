@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 from nyborg_rpa.utils.email import send_email
+from nyborg_rpa.utils.excel import df_to_excel_table
 from nyborg_rpa.utils.os2sofd_client import OS2sofdClient
 
 os2_client: OS2sofdClient
@@ -23,28 +24,6 @@ def parse_address_details(address: str) -> dict:
     }
 
     return details
-
-
-def to_excel(*, df: pd.DataFrame, filepath: str, sheet_name: str):
-    """Saves DataFrame as native Excel table autofitting columns"""
-
-    with pd.ExcelWriter(filepath, engine="xlsxwriter") as writer:
-
-        df.to_excel(
-            excel_writer=writer,
-            sheet_name=sheet_name,
-            startrow=1,
-            header=False,
-            index=False,
-        )
-
-        rows, cols = df.shape
-        worksheet = writer.sheets[sheet_name]
-        column_settings = [{"header": column} for column in df.columns]
-
-        worksheet.add_table(0, 0, rows, cols - 1, {"columns": column_settings, "style": "Table Style Medium 2"})
-        worksheet.set_column(0, cols - 1, 1)
-        worksheet.autofit()
 
 
 # @argh.arg(help="Merge LOS data into OS2sofd and send rapport with mismatch.", nargs="*")
@@ -221,7 +200,7 @@ def los_integration(*, mail_recipients: list[str], working_dir: str):
 
     df_los_mismatches = pd.DataFrame(rows).sort_values(by="Overliggende afdelinger")
 
-    to_excel(
+    df_to_excel_table(
         df=df_los_mismatches,
         filepath=working_dir / "los_integration_error_list.xlsx",
         sheet_name="LOS Fejlliste",
