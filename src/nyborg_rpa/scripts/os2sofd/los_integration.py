@@ -147,15 +147,12 @@ def los_integration(*, mail_recipients: list[str], working_dir: str):
         row = matches.iloc[0]
 
         # set organization manager if present in LOS data
-        if row["Leder"]:
-            manager_info = os2_client.get_user_by_username(username=row["Leder"])
+        if manager_username := row["Leder"]:
+            manager_info = os2_client.get_user_by_username(manager_username)
             os2_client.post_organization_manager(
                 organization_uuid=org["Uuid"],
                 user_uuid=manager_info.get("Uuid"),
             )
-
-        else:
-            tqdm.write(f"No leader found for {org_name!r}, skipping manager update.")
 
         # parse address and pnr from LOS data
         # and patch organization with new address and pnr
@@ -175,19 +172,14 @@ def los_integration(*, mail_recipients: list[str], working_dir: str):
             }
         ]
 
-        if not row["p-nummer"]:
-            tqdm.write(f"No p-nummer found for {org_name!r}, setting to 0.")
-
-        did_modify = os2_client.patch_organization(
+        tqdm.write(f"Updating {org_name!r} with manager={manager_username!r}, address={address_details!r} and {pnr=!r}.")
+        os2_client.patch_organization(
             uuid=org["Uuid"],
             json={
                 "postAddresses": post_addresses,
                 "pnr": pnr,
             },
         )
-
-        if did_modify:
-            tqdm.write(f"Modified {org["Name"]}")
 
     # #️⃣ STEP 3: Send rapport with organizations without match in LOS data
 
