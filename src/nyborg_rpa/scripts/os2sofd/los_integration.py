@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from pathlib import Path
 
 import argh
@@ -183,7 +184,9 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
             },
         )
 
-    # #️⃣ STEP 3: Send rapport with organizations without match in LOS data
+    # #️⃣ STEP 3: Send report with organizations without match in LOS data if monday
+    if datetime.today().strftime("%A") != "Monday":
+        return
 
     # build dataframe with org name and full path for each org without match
     rows = []
