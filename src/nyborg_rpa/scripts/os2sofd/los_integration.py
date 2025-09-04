@@ -9,6 +9,7 @@ from tqdm import tqdm
 from nyborg_rpa.utils.email import send_email
 from nyborg_rpa.utils.excel import df_to_excel_table
 from nyborg_rpa.utils.os2sofd_client import OS2sofdClient
+from nyborg_rpa.utils.pad import dispatch_pad_script
 
 os2_client: OS2sofdClient
 
@@ -26,8 +27,9 @@ def parse_address_details(address: str) -> dict:
     return details
 
 
-# @argh.arg(help="Merge LOS data into OS2sofd and send rapport with mismatch.", nargs="*")
-def los_integration(*, mail_recipients: list[str], working_dir: str):
+@argh.arg("--mail_recipients", help="List of email recipients for the report.", nargs="*")
+@argh.arg("--working_dir", help="Path containg data (LOS excel) and output.")
+def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
     """Merge LOS data into OS2sofd and send rapport with mismatch."""
 
     global os2_client
@@ -220,10 +222,5 @@ def los_integration(*, mail_recipients: list[str], working_dir: str):
 
 
 if __name__ == "__main__":
-
-    # test parse_address_details
-    for address in ["Torvet 1, 5800 Nyborg", "Nørregade 12, 5000 Odense C", "Hovedgaden 5, Mellemby, 6000 Kolding"]:
-        print(f"Parsed {address=!r} into {parse_address_details(address)}")
-
-    # los_integration(mail_recipients=["emia@nyborg.dk"], working_dir=r"C:\Users\mandr\Desktop\los-data")
-    # los_integration(mail_recipients=["emia@nyborg.dk"], working_dir=r"C:\Users\emia\Downloads")
+    dispatch_pad_script(fn=los_integration)
+    # los_integration(mail_recipients=[], working_dir=r"C:\Users\\Downloads")
