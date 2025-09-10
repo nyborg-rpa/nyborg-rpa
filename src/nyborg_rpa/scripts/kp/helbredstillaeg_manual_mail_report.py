@@ -51,6 +51,9 @@ def helbredstillaeg_manual_mail_report(*, sharepoint_id: int) -> str:
         case "Robotten kunne ikke finde borger i KP, og er derfor sendt til manuel behandling":
             msg = "Robotten kunne ikke finde borger i KP, og er derfor sendt til manuel behandling"
 
+        case "Kunne ikke finde borgers Sygesikring Danmark medlemsstatus":
+            msg = "Robotten kunne ikke finde borgerens medlems status af Sygesirking Danmark i KP, og er derfor sendt til manuel behandling"
+
         case _:
             raise ValueError("ikke tilføjet!")
 
