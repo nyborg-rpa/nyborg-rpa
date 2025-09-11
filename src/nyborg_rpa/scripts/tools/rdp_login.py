@@ -1,8 +1,10 @@
 import os
+from select import select
 from typing import Callable
 
 selected = dict()
 tbl_user_info = None  # AgGrid
+is_running = True
 IPC_ADDRESS = ("localhost", 19845)
 IPC_AUTHKEY = b"rdp_login_secret"
 
@@ -99,33 +101,28 @@ def rdp_login_app():
     def ipc_listener_thread():
         """Thread to listen for IPC commands from new instances."""
 
-        # Wait for the main window to be created
-        for _ in range(10):
-            if app.native.main_window is not None:
-                break
-            time.sleep(1)
-
         # create IPC listener and wait for connections
         listener = Listener(IPC_ADDRESS, authkey=IPC_AUTHKEY)
-        while app.native.main_window is not None:
+        while is_running:
+
+            # wait up to 0.1s for a connection
+            rlist, _, _ = select([listener._listener._socket], [], [], 0.1)
+            if not rlist:
+                continue  # nothing yet, loop again
 
             conn = listener.accept()
-            msg = conn.recv()
+            if conn.poll(timeout=0.1):
 
-            if msg == "show":
-
-                print("Received show command from new instance")
-                app.native.main_window.show()
-
-                # bring window to front
-                time.sleep(0.1)
-                app.native.main_window.set_always_on_top(True)
-                time.sleep(0.5)
-                app.native.main_window.set_always_on_top(False)
-                app.native.main_window.restore()
+                msg = conn.recv()
+                if msg == "show":
+                    app.native.main_window.show()
+                    time.sleep(0.1)
+                    app.native.main_window.set_always_on_top(True)
+                    time.sleep(0.5)
+                    app.native.main_window.set_always_on_top(False)
+                    app.native.main_window.restore()
 
             conn.close()
-            time.sleep(1)
 
         listener.close()
 
@@ -176,6 +173,14 @@ def rdp_login_app():
             ui.notify(f"Copied {col_id} to clipboard")
             ui.clipboard.write(value)
 
+    @app.on_disconnect
+    def on_disconnect():
+        global is_running
+        is_running = False
+
+    # start IPC listener that will handle commands from new instances
+    threading.Thread(target=ipc_listener_thread, daemon=True).start()
+
     # load usernames from database
     user_info = get_auth_table().filter(items=["Navn", "Username", "Password", "Program"])
     usernames = user_info.query("Program == 'Windows'").sort_values("Navn")["Navn"].tolist()
@@ -216,9 +221,6 @@ def rdp_login_app():
         # handler to copy cell value to clipboard on double click
         tbl_user_info.on("cellDoubleClicked", copy_cell)
 
-    # start IPC listener that will handle commands from new instances
-    threading.Thread(target=ipc_listener_thread, daemon=True).start()
-
     # run the app
     ui.run(
         native=True,
@@ -236,6 +238,7 @@ def main():
     # cmd.exe /c start "" "powershell.exe" -Command "cd 'C:\nyborg-rpa'; uv run --active rdp_login"
     # cmd.exe /c start "" "powershell.exe" -WindowStyle Hidden -Command "cd 'C:\nyborg-rpa'; uv run --active rdp_login"
     # conhost.exe --headless powershell.exe -NoProfile -WindowStyle Hidden -NonInteractive -Command "cd 'C:\nyborg-rpa'; & uv run --active rdp_login"
+    # conhost.exe powershell.exe -NoExit -NoProfile -Command "cd 'C:\nyborg-rpa'; & uv run --active rdp_login"
 
     global close_loading_box
     close_loading_box = loading_splash("Opening RDP Login...")
