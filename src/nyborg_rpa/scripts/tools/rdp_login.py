@@ -2,13 +2,13 @@ import os
 from select import select
 from typing import Callable
 
+is_running = True
 selected = dict()
 tbl_user_info = None  # AgGrid
-is_running = True
+close_loading_box = lambda: None  # placeholder for the loading box closer
+
 IPC_ADDRESS = ("localhost", 19845)
 IPC_AUTHKEY = b"rdp_login_secret"
-
-close_loading_box = lambda: None  # placeholder for the loading box closer
 
 
 def loading_splash(text: str, *, timeout: int = None) -> Callable[[], None]:
@@ -130,13 +130,7 @@ def rdp_login_app():
         app.native.main_window.minimize()
         app.native.main_window.hide()
 
-    def on_server_select(event: ValueChangeEventArguments):
-        selected["server"] = event.value
-
-    def on_user_select(event: ValueChangeEventArguments):
-        selected["user"] = event.value
-
-        # filter table to show only the selected user
+    def filter_table(event: GenericEventArguments):
         tbl_user_info.run_grid_method("setFilterModel", {"Navn": {"filterType": "text", "type": "equals", "filter": selected["user"]}})
         tbl_user_info.run_grid_method("onFilterChanged")
 
@@ -161,14 +155,13 @@ def rdp_login_app():
             daemon=True,
         ).start()
 
-        # reload UI and hide window
-        ui.run_javascript("location.reload();")
+        # clear selection and hide window
+        selected.update({"server": None, "user": None})
         hide_window(event)
 
     def copy_cell(e: GenericEventArguments):
 
         value, col_id = e.args.get("value"), e.args.get("colId")
-
         if col_id in {"Username", "Password"}:
             ui.notify(f"Copied {col_id} to clipboard")
             ui.clipboard.write(value)
@@ -189,7 +182,7 @@ def rdp_login_app():
     @ui.page("/")
     def index(client: Client):
 
-        global tbl_user_info  # TODO: convert app to a class to avoid global variables
+        global tbl_user_info  # TODO: convert app to a class to avoid global
 
         # close the loading box if still open
         close_loading_box()
@@ -198,9 +191,14 @@ def rdp_login_app():
         client.content.classes("h-screen w-screen flex justify-start items-center overflow-hidden")
 
         # dropdown and buttons
-        with ui.row(align_items="center"):
-            ui.select(servers, label="Server", with_input=True, on_change=on_server_select)
-            ui.select(usernames, label="User", with_input=True, on_change=on_user_select)
+        with ui.row(align_items="baseline"):
+            ui.button(icon="filter_alt_off", on_click=lambda e: selected.update({"server": None, "user": None})).bind_enabled_from(
+                globals(),
+                "selected",
+                backward=lambda s: bool(s.get("server") or s.get("user")),
+            ).props("flat").classes("self-stretch")
+            ui.select(servers, label="Server", with_input=True).bind_value(selected, "server")
+            ui.select(usernames, label="User", with_input=True, on_change=filter_table).bind_value(selected, "user")
             ui.button("Start", on_click=start_server)
             ui.button("Hide", on_click=hide_window)
             # ui.button("Exit", on_click=lambda e: app.shutdown(), color="negative")
@@ -216,7 +214,11 @@ def rdp_login_app():
         tbl_user_info = ui.aggrid.from_pandas(
             df=user_info,
             options={"columnDefs": cols_defs},
+            auto_size_columns=True,
         ).classes("flex-1 h-full")
+
+        # force columns to fit
+        tbl_user_info.run_grid_method("sizeColumnsToFit")
 
         # handler to copy cell value to clipboard on double click
         tbl_user_info.on("cellDoubleClicked", copy_cell)
