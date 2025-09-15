@@ -57,6 +57,9 @@ def helbredstillaeg_manual_mail_report(*, sharepoint_id: int, message: str | Non
         case "Kunne ikke finde borgers Sygesikring Danmark medlemsstatus":
             msg = "Robotten kunne ikke finde borgerens medlems status af Sygesirking Danmark i KP, og er derfor sendt til manuel behandling"
 
+        case "Dublet":
+            msg = "Robotten har tidligere betalt samme kvittering, og vil derfor ikke behandle kvitteringen. Er derfor sendt til manuel behandling."
+
         case _:
             raise ValueError(f"ikke tilføjet!: {output["status_message"]}")
 
