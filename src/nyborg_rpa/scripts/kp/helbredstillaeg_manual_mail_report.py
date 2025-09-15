@@ -6,7 +6,7 @@ from nyborg_rpa.utils.pad import dispatch_pad_script
 from nyborg_rpa.utils.sharepoint import get_sharepoint_item_by_id
 
 
-def helbredstillaeg_manual_mail_report(*, sharepoint_id: int) -> str:
+def helbredstillaeg_manual_mail_report(*, sharepoint_id: int, message: str | None = None) -> str:
     # This function generates a manual email report for the helbredstillaeg process.
 
     # Fetch from SharePoint item by ID
@@ -23,6 +23,9 @@ def helbredstillaeg_manual_mail_report(*, sharepoint_id: int) -> str:
     has_sygesikringsandel = bool(sp_item["HarSygesikringsandel_x003f_"])
     has_ydernummer = bool(sp_item["HarYdernummer_x003f_"])
     health_allowance_pct = f"{output["health_pct"]:.0%}"
+
+    if message:
+        output["status_message"] = message
 
     # Generate the standard message based on the status message
     match output["status_message"]:
@@ -55,7 +58,7 @@ def helbredstillaeg_manual_mail_report(*, sharepoint_id: int) -> str:
             msg = "Robotten kunne ikke finde borgerens medlems status af Sygesirking Danmark i KP, og er derfor sendt til manuel behandling"
 
         case _:
-            raise ValueError("ikke tilføjet!")
+            raise ValueError(f"ikke tilføjet!: {output["status_message"]}")
 
     # Generate the email body in HTML format
     body = """<!DOCTYPE html>
