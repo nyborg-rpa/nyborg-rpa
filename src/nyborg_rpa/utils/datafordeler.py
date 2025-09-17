@@ -1,6 +1,7 @@
 import os
 import re
 from pathlib import Path
+from typing import NotRequired, TypedDict
 
 import pandas as pd
 import requests
@@ -9,56 +10,37 @@ from dotenv import load_dotenv
 from nyborg_rpa.utils.cryptography import pfx_cert_to_pem
 
 
-def parse_address(address: dict) -> str:
-    """
-    Returnerer adresse i format:
-    'Vejnavn Husnr[bogstav], [etage] [dør], Postnr Bynavn'
-    """
+class DatafordelerAddress(TypedDict):
+    vejadresseringsnavn: str
+    husnummer: str
+    postnummer: str
+    postdistrikt: str
+    etage: NotRequired[str]
+    sidedoer: NotRequired[str]
+    bynavn: NotRequired[str]
 
-    def parse_street_number(street_number: str) -> str:
-        import re
 
-        if street_number.isdigit():
-            return str(int(street_number))
+def parse_address(address: DatafordelerAddress) -> str:
+    """Parse a Datafordeler address into a single-line string on the form 'Street Name Nr, Floor Door, Zip City'."""
 
-        match = re.match(r"^(\d+)([a-zA-Z])$", street_number)
-        number_part = int(match.group(1))  # fjerner fx foranstillede nuller
-        letter_part = match.group(2)  # beholder evt. bogstaver
+    # https://danmarksadresser.dk/om-adresser/saadan-gengives-en-adresse
 
-        return f"{number_part}{letter_part}"
+    street_name = address["vejadresseringsnavn"]  # TODO: add supplerende bynavn
+    street_nr = re.sub(r"^0+", "", address["husnummer"])  # 005C, 063, 003A, etc.
+    street = f"{street_name} {street_nr}"
 
-    def parse_street_floor(floor: str) -> str:
-        if floor is None:
-            return ""
-        if floor.isdigit():
-            return f"{int(floor)}."
-        return f"{floor}."
+    floor = re.sub(r"^0*(.+)$", r"\1.", address.get("etage", ""))  # "02" -> "2.", "st" -> "st."
+    door = address.get("sidedoer", "")  # "tv", "a19", etc.
+    floor_and_door = " ".join(p for p in (floor, door) if p)
 
-    street_details = []
+    city = address["postdistrikt"]  # Ebeltoft, Randers C, etc.
+    zip_code = address["postnummer"]
+    city_line = f"{zip_code} {city}"
 
-    street_name = address.get("vejadresseringsnavn")
-    street_number = parse_street_number(address.get("husnummer"))
+    parts = [street, floor_and_door, city_line]
+    line = ", ".join(p for p in parts if p)
 
-    street_details.append(f"{street_name} {street_number}")
-
-    street_floor = parse_street_floor(address.get("etage"))
-    street_door = address.get("sidedoer")
-
-    if street_floor and street_door:
-        street_details.append(f"{street_floor} {street_door}")
-    elif street_floor:
-        street_details.append(street_floor)
-    elif street_door:
-        street_details.append(street_door)
-
-    street_district_number = address.get("postnummer")
-    street_district = address.get("postdistrikt")
-
-    street_details.append(f"{street_district_number} {street_district}")
-
-    street = ", ".join(street_details)
-
-    return street
+    return line
 
 
 class DatafordelerClient:
