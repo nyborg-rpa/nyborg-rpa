@@ -3,8 +3,8 @@ import re
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
+import httpx
 import pandas as pd
-import requests
 from dotenv import load_dotenv
 
 from nyborg_rpa.utils.cryptography import pfx_cert_to_pem
@@ -43,39 +43,36 @@ def parse_address(address: DatafordelerAddress) -> str:
     return line
 
 
-class DatafordelerClient:
+class DatafordelerClient(httpx.Client):
+    """Client for the Danish Datafordeler API."""
 
-    def __init__(self):
-        load_dotenv(override=True, verbose=True)
-        self.cer_file = Path(os.environ["DATAFORDELER_CER_FILE"])
-        self.pfx_file = Path(os.environ["DATAFORDELER_PFX_FILE"])
+    def __init__(
+        self,
+        *,
+        pfx_file: Path | str = None,
+        pfx_password: str = None,
+        **kwargs,
+    ) -> None:
 
-        assert self.cer_file.exists(), f"Certificate file {self.cer_file} does not exist."
-        assert self.pfx_file.exists(), f"PFX file {self.pfx_file} does not exist."
+        # load and resolve certificate
+        if not pfx_file or not pfx_password:
+            load_dotenv(override=True, verbose=True)
 
-        self.pem_file = pfx_cert_to_pem(
-            filepath=self.pfx_file,
-            password=os.environ["DATAFORDELER_PASSWORD"],
-        )
-        self.kommune_kode = "0450"
-        self.base_params = {
-            "format": "json",
-            "pageSize": 200,
-        }
+        pfx_file = Path(pfx_file or os.environ["DATAFORDELER_PFX_FILE"])
+        pfx_password = pfx_password or os.environ["DATAFORDELER_PFX_PASSWORD"]
+        assert pfx_file.exists(), f"PFX file {pfx_file.as_posix()!r} does not exist."
+        pem_file = pfx_cert_to_pem(filepath=pfx_file, password=pfx_password)
 
-    def get(self, url: str, params: dict) -> dict | None:
-        resp = requests.get(
-            url=url,
-            params=(self.base_params | params),
-            cert=str(self.pem_file),
+        # initialize client with cert and default params
+        super().__init__(
+            cert=str(pem_file),
+            params={"format": "json", "pageSize": 200},
             verify=True,
+            **kwargs,
         )
-        resp.raise_for_status()
-        data = resp.json()
-
-        return data
 
     def fech_citizens_data(self, data: dict) -> dict:
+
         citizens = []
         for person in data["Personer"]:
             citizens.append(
