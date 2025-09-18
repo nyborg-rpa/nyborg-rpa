@@ -82,7 +82,7 @@ class DatafordelerClient(httpx.Client):
                     "address": parse_address(
                         address=next(address["Adresseoplysninger"]["CprAdresse"] for address in person["Person"]["Adresseoplysninger"] if address["Adresseoplysninger"]["CprAdresse"])
                     ),
-                    "birthday": pd.to_datetime(person["Person"]["foedselsdato"]).strftime("%d-%m-%Y"),
+                    "birthday": pd.to_datetime(str(person["Person"]["foedselsdato"])).to_pydatetime().date(),
                     "civil_status": next((civil["Civilstand"]["Civilstandstype"] for civil in person["Person"]["Civilstande"] if civil["Civilstand"]["status"] == "aktuel"), None),
                     "civil_valid_from": pd.to_datetime(
                         next((civil["Civilstand"]["virkningFra"] for civil in person["Person"]["Civilstande"] if civil["Civilstand"]["status"] == "aktuel"), None)
