@@ -123,11 +123,15 @@ def anniversaries_df_to_excel_table(*, df: pd.DataFrame, filepath: Path | str, s
     writer.close()
 
 
-def anniversary_next_year(
+def resident_milestones_for_next_year(
     *,
     working_dir: Path | str,
     mail_recipients: list[str],
 ):
+    """
+    Find residents with upcoming 100-years birthdays and wedding anniversaries next year,
+    generate Excel files, and send them via email.
+    """
 
     load_dotenv(override=True)
 
@@ -214,4 +218,4 @@ def anniversary_next_year(
 
 if __name__ == "__main__":
     user = os.getlogin()
-    anniversary_next_year(working_dir=f"C:/Users/{user}/Downloads", mail_recipients=[f"{user}@nyborg.dk"])
+    resident_milestones_for_next_year(working_dir=f"C:/Users/{user}/Downloads", mail_recipients=[f"{user}@nyborg.dk"])
