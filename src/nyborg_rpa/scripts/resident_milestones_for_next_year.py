@@ -1,24 +1,68 @@
+import json
 import os
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
+from typing import TypedDict
 
 import pandas as pd
 from dotenv import load_dotenv
 from xlsxwriter.utility import xl_range
 from xlsxwriter.worksheet import Worksheet
 
-from nyborg_rpa.utils.datafordeler import DatafordelerClient
+from nyborg_rpa.utils.datafordeler import DatafordelerClient, parse_address
 from nyborg_rpa.utils.email import send_email
 from nyborg_rpa.utils.excel import df_to_excel_table
 
 client: DatafordelerClient
 
 
+class Resident(TypedDict):
+    """A simplified representation of a Person from Datafordeler CPR."""
+
+    cpr: str
+    name: str
+    address: str
+    birthday: date
+    civil_status: str
+    civil_valid_from: date
+    partner_cpr: str | None
+
+    @classmethod
+    def from_datafordeler_person(cls, person: dict) -> "Resident":
+
+        # check that data doesn't contain "status: "historisk"
+        if '"status": "historisk"' in json.dumps(person, ensure_ascii=False):
+            raise ValueError(f"Person object with id={person['id']!r} contains historical records.")
+
+        # basic info
+        resident = {
+            "id": person["id"],
+            "birthday": datetime.fromisoformat(person["foedselsdato"]).date(),
+            "gender": person["koen"],
+            "status": person["status"],
+        }
+
+        # extended info
+        resident["name"] = person["Navne"][0]["Navn"]["adresseringsnavn"].replace(",", ", ")
+        resident["cpr"] = person["Personnumre"][0]["Personnummer"]["personnummer"]
+
+        # address
+        address_dict = person["Adresseoplysninger"][0]["Adresseoplysninger"]["CprAdresse"]
+        resident["address"] = parse_address(address_dict)
+
+        # civil info and partner
+        civil_info = person["Civilstande"][0]["Civilstand"]
+        resident["civil_status"] = civil_info["Civilstandstype"]
+        resident["civil_valid_from"] = datetime.fromisoformat(civil_info["virkningFra"]).date()
+        resident["partner_cpr"] = civil_info.get("Aegtefaelle", {}).get("aegtefaellePersonnummer")
+
+        return cls(**resident)
+
+
 def find_residents_turning_age_for_year(*, age: int, year: int) -> pd.DataFrame:
     """Find residents turning a specific age in a given year."""
 
-    resp = client.get(
-        url="https://s5-certservices.datafordeler.dk/CPR/CPRPersonFullComplete/1/REST/PersonFullCurrentListComplete",
+    persons = client.get_persons(
         params={
             "person.foedselsdato.ge": f"{year - age}-01-01",
             "person.foedselsdato.le": f"{year - age}-12-31",
@@ -28,14 +72,13 @@ def find_residents_turning_age_for_year(*, age: int, year: int) -> pd.DataFrame:
         },
     )
 
-    resp.raise_for_status()
-    data = resp.json()
-    residents = client.fech_citizens_data(data=data)
+    residents = [Resident.from_datafordeler_person(p) for p in persons]
+    cols = list(Resident.__annotations__.keys())
 
     df = (
         pd.DataFrame(
             data=residents,
-            columns=["name", "address", "birthday", "cpr"],
+            columns=cols,
             dtype=str,
         )
         .sort_values(by="birthday")
@@ -48,11 +91,10 @@ def find_residents_turning_age_for_year(*, age: int, year: int) -> pd.DataFrame:
 def find_residents_with_wedding_anniversaries_for_year(*, anniversaries: list[int], year: int) -> pd.DataFrame:
     """Find residents with wedding anniversaries in a given year."""
 
-    all_residents = []
+    residents = []
     for anniversary in anniversaries:
 
-        resp = client.get(
-            url="https://s5-certservices.datafordeler.dk/CPR/CPRPersonFullComplete/1/REST/PersonFullCurrentListComplete",
+        persons = client.get_persons(
             params={
                 "civ.status.eq": "aktuel",
                 "civ.civilstandstype.eq": "gift",
@@ -64,19 +106,17 @@ def find_residents_with_wedding_anniversaries_for_year(*, anniversaries: list[in
             },
         )
 
-        resp.raise_for_status()
-        data = resp.json()
-        residents = client.fech_citizens_data(data=data)
-
-        for r in residents:
+        for p in persons:
+            r = Resident.from_datafordeler_person(p)
             r["anniversary"] = anniversary
             r["couple_id"] = "".join(sorted([r["cpr"], r["partner_cpr"]]))
-            all_residents += [r]
+            residents += [r]
 
+    cols = ["anniversary", "couple_id"] + list(Resident.__annotations__.keys())
     df = (
         pd.DataFrame(
-            data=all_residents,
-            columns=["couple_id", "anniversary", "civil_valid_from", "name", "address", "cpr", "partner_cpr"],
+            data=residents,
+            columns=cols,
             dtype=str,
         )
         .sort_values(by=["anniversary", "couple_id", "cpr"])
@@ -147,16 +187,7 @@ def resident_milestones_for_next_year(
     df_hundred_years = (
         find_residents_turning_age_for_year(age=100, year=year)
         .assign(birthday=lambda df: pd.to_datetime(df["birthday"]).dt.strftime(f"{year}-%m-%d"))
-        .rename(
-            columns=(
-                c := {
-                    "name": "Navn",
-                    "address": "Adresse",
-                    "birthday": "Fødselsdag",
-                    "cpr": "Personnummer",
-                }
-            )
-        )
+        .rename(columns=(c := {"name": "Navn", "address": "Adresse", "birthday": "Fødselsdag", "cpr": "Personnummer"}))
         .filter(items=c.values())
     )
 
