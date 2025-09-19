@@ -1,5 +1,7 @@
+import json
 import os
 import re
+from itertools import count
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
@@ -71,6 +73,45 @@ class DatafordelerClient(httpx.Client):
             **kwargs,
         )
 
+    def get_persons(
+        self,
+        params: dict,
+        *,
+        historical: bool = False,
+    ) -> list[dict]:
+        """Get persons from Datafordeler CPR endpoint for given query params."""
+
+        if "page" in params:
+            raise ValueError("Pagination is handled internally, do not pass 'page' in params.")
+
+        if historical:
+            raise NotImplementedError("Historical CPR endpoint not implemented yet.")
+
+        url = "https://s5-certservices.datafordeler.dk/CPR/CPRPersonFullComplete/1/REST/PersonFullCurrentListComplete"
+        page_size = params.get("pageSize", 500)
+        params |= {"pageSize": page_size}
+
+        persons = []
+        for page in count(1):
+
+            resp = self.get(
+                url=url,
+                params=params | {"page": page},
+            )
+
+            resp.raise_for_status()
+            data = resp.json()  # {"Personer": [{"Person": {...}, ...}]}
+            new_persons = [p["Person"] for p in data["Personer"]]
+            persons += new_persons
+
+            if not new_persons or len(new_persons) < page_size:
+                break  # no more pages
+
+        if not historical:
+            persons = [prune_historical_records(p) for p in persons]
+
+        return persons
+
     def fech_citizens_data(self, data: dict) -> dict:
 
         citizens = []
@@ -99,3 +140,26 @@ class DatafordelerClient(httpx.Client):
             )
 
         return citizens
+
+
+def prune_historical_records(obj: dict) -> dict:
+    """
+    Remove list elements with `status == "historisk"` from a Datafordeler object.
+
+    A Datafordeler object is structured as: `{id: ..., Navne: [{Navn: {status: "historisk|aktuel", ...}, ...]}`
+    """
+
+    def is_historical(entry: dict) -> bool:
+        return '"status": "historisk"' in json.dumps(entry, ensure_ascii=False)
+
+    def prune_list(entries: list[dict]) -> list[dict]:
+        return [e for e in entries if not is_historical(e)]
+
+    pruned = {}
+    for key, value in obj.items():
+        if isinstance(value, list):
+            pruned[key] = prune_list(value)
+        else:
+            pruned[key] = value
+
+    return pruned
