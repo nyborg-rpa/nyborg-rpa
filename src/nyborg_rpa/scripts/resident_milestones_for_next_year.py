@@ -1,4 +1,5 @@
 import json
+import locale
 import os
 from datetime import date, datetime
 from pathlib import Path
@@ -74,16 +75,7 @@ def find_residents_turning_age_for_year(*, age: int, year: int) -> pd.DataFrame:
 
     residents = [Resident.from_datafordeler_person(p) for p in persons]
     cols = list(Resident.__annotations__.keys())
-
-    df = (
-        pd.DataFrame(
-            data=residents,
-            columns=cols,
-            dtype=str,
-        )
-        .sort_values(by="birthday")
-        .reset_index(drop=True)
-    )
+    df = pd.DataFrame(data=residents, columns=cols)
 
     return df
 
@@ -113,15 +105,7 @@ def find_residents_with_wedding_anniversaries_for_year(*, anniversaries: list[in
             residents += [r]
 
     cols = ["anniversary", "couple_id"] + list(Resident.__annotations__.keys())
-    df = (
-        pd.DataFrame(
-            data=residents,
-            columns=cols,
-            dtype=str,
-        )
-        .sort_values(by=["anniversary", "couple_id", "cpr"])
-        .reset_index(drop=True)
-    )
+    df = pd.DataFrame(data=residents, columns=cols)
 
     return df
 
@@ -183,12 +167,17 @@ def resident_milestones_for_next_year(
     today = datetime.today()
     year = today.year + 1
 
+    # set Danish locale for date formatting
+    locale.setlocale(locale.LC_ALL, "da_DK.UTF-8")
+
     # find residents with 100-years birthday next year
     df_hundred_years = (
         find_residents_turning_age_for_year(age=100, year=year)
-        .assign(birthday=lambda df: pd.to_datetime(df["birthday"]).dt.strftime(f"{year}-%m-%d"))
+        .sort_values(by="birthday")
+        .assign(birthday=lambda df: pd.to_datetime(df["birthday"]).dt.strftime(f"%d. %B {year}"))  # format as "1. januar {year}"
         .rename(columns=(c := {"name": "Navn", "address": "Adresse", "birthday": "Fødselsdag", "cpr": "Personnummer"}))
         .filter(items=c.values())
+        .reset_index(drop=True)
     )
 
     # find residents with wedding anniversary next year
@@ -198,6 +187,8 @@ def resident_milestones_for_next_year(
             year=year,
         )
         .sort_values(by=["anniversary", "couple_id", "cpr"])
+        .assign(civil_valid_from=lambda df: pd.to_datetime(df["civil_valid_from"]).dt.strftime("%d. %B %Y"))
+        .astype(str)
         .assign(anniversary=lambda df: df["anniversary"] + " år")
         .rename(
             columns=(
