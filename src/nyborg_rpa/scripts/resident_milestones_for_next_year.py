@@ -5,6 +5,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import TypedDict
 
+import argh
 import pandas as pd
 from dotenv import load_dotenv
 from xlsxwriter.utility import xl_range
@@ -13,6 +14,7 @@ from xlsxwriter.worksheet import Worksheet
 from nyborg_rpa.utils.datafordeler import DatafordelerClient, parse_address
 from nyborg_rpa.utils.email import send_email
 from nyborg_rpa.utils.excel import df_to_excel_table
+from nyborg_rpa.utils.pad import dispatch_pad_script
 
 client: DatafordelerClient
 
@@ -147,6 +149,8 @@ def anniversaries_df_to_excel_table(*, df: pd.DataFrame, filepath: Path | str, s
     writer.close()
 
 
+@argh.arg("--mail_recipients", help="List of email recipients for the report.", nargs="*")
+@argh.arg("--working_dir", help="Path containing data output.")
 def resident_milestones_for_next_year(
     *,
     working_dir: Path | str,
@@ -239,5 +243,6 @@ def resident_milestones_for_next_year(
 
 
 if __name__ == "__main__":
-    user = os.getlogin()
-    resident_milestones_for_next_year(working_dir=f"C:/Users/{user}/Downloads", mail_recipients=[f"{user}@nyborg.dk"])
+    dispatch_pad_script(fn=resident_milestones_for_next_year)
+    # user = os.getlogin()
+    # resident_milestones_for_next_year(working_dir=f"C:/Users/{user}/Downloads", mail_recipients=[f"{user}@nyborg.dk"])
