@@ -9,10 +9,7 @@ import argh
 import pandas as pd
 
 from nyborg_rpa.utils.pad import dispatch_pad_script
-from nyborg_rpa.utils.sharepoint import (
-    get_sharepoint_item_by_id,
-    get_sharepoint_list_items,
-)
+from nyborg_rpa.utils.sharepoint import get_sharepoint_item_by_id, get_sharepoint_list_items
 
 
 class HelbredstillaegData(TypedDict):
@@ -179,7 +176,8 @@ def calculate_helbredstillaeg_for_case(data: HelbredstillaegData) -> dict:
     if treatment_type == "Fodbehandling":
         main_treatments = [x["Behandling"] for x in treatments if re.match(r"^Behandlingstype\s[ABC]$|^Almindelig$", x["Behandling"])]
         if len(main_treatments) > 1:
-            raise ValueError(f"Found >1 main treatments for {treatment_type} on {treatment_date:%Y-%m-%d}: {main_treatments}")
+            output["status_message"] = "Indtastet mere end 1 hovedbehandling"
+            return output
 
     # calculate total price
     print(f"checking {len(treatments)} treatment(s) for {treatment_type} on {treatment_date:%Y-%m-%d}...")
