@@ -81,6 +81,31 @@ class OS2sofdApiClient(httpx.Client):
 
         return user
 
+    def get_user_by_uuid(self, uuid: str) -> dict | None:
+        """
+        Fetch user information based on uuid.
+
+        Args:
+            uuid: The uuid of the user.
+
+        Returns:
+            Dict with user information if found, otherwise None.
+        """
+
+        params = {
+            "$filter": f"Uuid eq '{uuid}'",
+            "$top": 1,
+            "$expand": "Affiliations,Users,Photo,Phones,Children,AuthorizationCodes,Substitutes,DisabledUsers",
+        }
+
+        resp = self.get(url="odata/Persons", params=params)
+        resp.raise_for_status()
+
+        data = resp.json()
+        user = next(iter(data.get("value", [])), None)
+
+        return user
+
     def get_organization_by_uuid(self, uuid: str) -> dict | None:
         """
         Fetch all organization data.
