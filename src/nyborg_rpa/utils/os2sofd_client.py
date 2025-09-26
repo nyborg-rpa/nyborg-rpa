@@ -1,7 +1,14 @@
+import asyncio
 import os
+import sys
+from asyncio import WindowsProactorEventLoopPolicy
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 from dotenv import load_dotenv
+from playwright.sync_api import sync_playwright
+
+from nyborg_rpa.utils.auth import get_user_login_info
 
 
 class OS2sofdApiClient(httpx.Client):
@@ -235,3 +242,86 @@ class OS2sofdApiClient(httpx.Client):
         did_data_change = resp.status_code in {200, 204}
 
         return did_data_change
+
+
+class OS2sofdGuiClient(httpx.Client):
+    def __init__(
+        self,
+        *,
+        user: str,
+        kommune: str,
+        **kwargs,
+    ):
+        """
+        Initialize the OS2sofdGuiClient.
+
+        Args:
+            kommune: The `{kommune}.sofd.io` domain to connect to.
+            user: The username for GUI login.
+            kwargs: Extra arguments passed to httpx.Client.
+        """
+
+        self.kommune = kommune
+        self.user = user
+        self.password = get_user_login_info(username=self.user, program="Windows")["password"]
+        self.session = self._create_session()
+
+        super().__init__(
+            base_url=f"https://{self.kommune}.sofd.io",
+            headers=self.session["headers"],
+            follow_redirects=False,
+            **kwargs,
+        )
+
+        for c in self.session["cookies"]:
+            self.cookies.set(
+                name=c["name"],
+                value=c["value"],
+                domain=c.get("domain"),
+                path=c.get("path"),
+            )
+
+    def _create_session(self) -> dict:
+        try:
+            p = sync_playwright().start()
+        except Exception:
+            if sys.platform == "win32":
+                asyncio.set_event_loop_policy(WindowsProactorEventLoopPolicy())
+
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                return executor.submit(self._create_session).result()
+
+        browser = p.chromium.launch(args=["--auth-server-allowlist=_"], headless=True)
+        context = browser.new_context(
+            http_credentials={"username": self.user, "password": self.password},
+        )
+        page = context.new_page()
+        csrf_token = ""
+
+        def handle_request(request):
+            nonlocal csrf_token
+            h = request.headers
+            if "x-csrf-token" in h:
+                csrf_token = h["x-csrf-token"]
+
+        page.on("request", handle_request)
+
+        page.goto(f"https://{self.kommune}.sofd.io/saml/SSO")
+        page.goto(f"https://{self.kommune}.sofd.io/ui/orgunit")
+
+        cookies = context.cookies()
+        user_agent = page.evaluate("() => navigator.userAgent")
+
+        browser.close()
+        p.stop()
+
+        session_info = {}
+        session_info["headers"] = {
+            "User-Agent": user_agent,
+            "x-csrf-token": csrf_token,
+            "Content-Type": "application/json",
+        }
+        session_info["cookies"] = cookies
+
+        return session_info
+

@@ -24,6 +24,7 @@ dependencies = [
     "pywebview>=5.4",
     "tqdm>=4.67.1",
     "xlsxwriter>=3.2.3",
+    "playwright>=1.52.0",
 ]
 
 [dependency-groups]
