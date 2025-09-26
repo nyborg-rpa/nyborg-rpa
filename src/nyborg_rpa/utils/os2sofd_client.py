@@ -443,3 +443,20 @@ class OS2sofdGuiClient(httpx.Client):
                     organisation_coreinfo[field_id] = value if value != "" else None
 
         return organisation_coreinfo
+
+    def post_organization_coreinfo(self, *, uuid: str, json: dict) -> None:
+        """
+        Update organization coreinfo details and return whether data was changed.
+
+        Args:
+            uuid: The UUID of the organization.
+            json: The JSON data to update the organization with.
+        """
+
+        expected_keys = {"sourceName", "parentName", "parent", "shortname", "displayName", "manager", "search_person", "cvr", "senr", "pnr", "costBearer", "ean", "orgUnitType", "doNotTransferToFKOrg"}
+        if wrong_keys := set(json.keys()) ^ expected_keys:
+            raise ValueError(f"JSON contains unexpected keys: {wrong_keys}. Expected: {expected_keys}")
+
+        self.refresh_session()
+        resp = self.post(f"rest/orgunit/{uuid}/update/coreInfo", json=json)
+        resp.raise_for_status()
