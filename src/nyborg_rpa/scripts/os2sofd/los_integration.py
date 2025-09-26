@@ -9,10 +9,10 @@ from tqdm import tqdm
 
 from nyborg_rpa.utils.email import send_email
 from nyborg_rpa.utils.excel import df_to_excel_table
-from nyborg_rpa.utils.os2sofd_client import OS2sofdClient
+from nyborg_rpa.utils.os2sofd_client import OS2sofdApiClient
 from nyborg_rpa.utils.pad import dispatch_pad_script
 
-os2_client: OS2sofdClient
+os2_api_client: OS2sofdApiClient
 
 
 def parse_address_details(address: str) -> dict:
@@ -33,10 +33,10 @@ def parse_address_details(address: str) -> dict:
 def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
     """Merge LOS data into OS2sofd and send rapport with mismatch."""
 
-    global os2_client
+    global os2_api_client
 
     load_dotenv(override=True)
-    os2_client = OS2sofdClient(kommune="nyborg")
+    os2_api_client = OS2sofdApiClient(kommune="nyborg")
     working_dir: Path = Path(working_dir)
 
     # read LOS and SD files
@@ -83,7 +83,7 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
         # extract <username>@nyborg.dk based on CPR number (if available)
         username = None
         if pd.notna(row["CPR-nummer"]):
-            user_info = os2_client.get_user_by_cpr(cpr=row["CPR-nummer"].replace("-", ""))
+            user_info = os2_api_client.get_user_by_cpr(cpr=row["CPR-nummer"].replace("-", ""))
             username = next((str(user["UserId"]).lower() for user in user_info["Users"] if "@" not in user["UserId"]), None)
 
         match row["Afdeling"]:
@@ -113,7 +113,7 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
     # #️⃣ STEP 2: Merge LOS data into OS2sofd
 
     # fetch organizations from OS2sofd
-    organizations = os2_client.get_all_organizations()
+    organizations = os2_api_client.get_all_organizations()
 
     # update each organisation with manager, address and pnr based on LOS data
     # and keep track of organizations with no match in LOS data
@@ -151,8 +151,8 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
 
         # set organization manager if present in LOS data
         if manager_username := row["Leder"]:
-            manager_info = os2_client.get_user_by_username(manager_username)
-            os2_client.post_organization_manager(
+            manager_info = os2_api_client.get_user_by_username(manager_username)
+            os2_api_client.post_organization_manager(
                 organization_uuid=org["Uuid"],
                 user_uuid=manager_info.get("Uuid"),
             )
@@ -176,7 +176,7 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
         ]
 
         tqdm.write(f"Updating {org_name!r} with manager={manager_username!r}, address={address_details!r} and {pnr=!r}.")
-        os2_client.patch_organization(
+        os2_api_client.patch_organization(
             uuid=org["Uuid"],
             json={
                 "postAddresses": post_addresses,
@@ -192,7 +192,7 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
     rows = []
     for org in orgs_without_los_match:
         if org["ParentUuid"]:
-            org_path = os2_client.get_organization_path(org, separator=" > ")
+            org_path = os2_api_client.get_organization_path(org, separator=" > ")
             rows += [{"Afdeling": org["Name"], "Kilde": org["Source"], "Overliggende afdelinger": org_path}]
 
     df_los_mismatches = pd.DataFrame(rows).sort_values(by="Overliggende afdelinger")

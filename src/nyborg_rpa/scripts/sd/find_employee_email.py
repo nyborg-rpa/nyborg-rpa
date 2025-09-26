@@ -1,4 +1,4 @@
-from nyborg_rpa.utils.os2sofd_client import OS2sofdClient
+from nyborg_rpa.utils.os2sofd_client import OS2sofdApiClient
 from nyborg_rpa.utils.pad import dispatch_pad_script
 
 
@@ -12,7 +12,7 @@ def find_employee_email(*, cpr: str) -> str | None:
     Returns:
         str: The email address of the employee if found, otherwise None.
     """
-    sofd_client = OS2sofdClient(kommune="nyborg")
+    sofd_client = OS2sofdApiClient(kommune="nyborg")
     user_info = sofd_client.get_user_by_cpr(cpr=cpr)
 
     email = next((user["UserId"] for user in user_info["Users"] if "@" in user["UserId"]), None)
