@@ -4,7 +4,7 @@ import httpx
 from dotenv import load_dotenv
 
 
-class OS2sofdClient(httpx.Client):
+class OS2sofdApiClient(httpx.Client):
 
     def __init__(
         self,
@@ -14,7 +14,7 @@ class OS2sofdClient(httpx.Client):
         **kwargs,
     ):
         """
-        Initialize the OS2sofdClient.
+        Initialize the OS2sofdAPIClient.
 
         Args:
             api_key: API key for SOFD. Defaults to `OS2SOFD_API_KEY` environment variable if not provided.
