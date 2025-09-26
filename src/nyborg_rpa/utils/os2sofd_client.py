@@ -3,9 +3,11 @@ import os
 import sys
 from asyncio import WindowsProactorEventLoopPolicy
 from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 from typing import TypedDict
 
 import httpx
+import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
@@ -22,6 +24,24 @@ class OrgAddress(TypedDict):
     country: str
     returnAddress: bool
     prime: bool
+
+
+@lru_cache(maxsize=None)
+def latest_commit_hash(repos: str, path: str) -> str:
+    """
+    Get the latest git commit hash for a given file.
+
+    Args: path: The file path to check.
+    """
+    url = f"https://api.github.com/repos/{repos}/commits?path={path}&sha=main"
+    resp = requests.get(url)
+    resp.raise_for_status()
+    commits = resp.json()
+    if not commits:
+        raise ValueError("No commits found for the specified file.")
+
+    return commits[0]["sha"]
+
 
 class OS2sofdApiClient(httpx.Client):
 
@@ -404,6 +424,10 @@ class OS2sofdGuiClient(httpx.Client):
             Dict with organization information if found, otherwise None.
         """
 
+        last_commit = latest_commit_hash(repos="OS2sofd/os2sofd", path="ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java")
+        if last_commit != "f31185bcb65870d0277109c965cf78a7dd232b71":
+            raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
+
         self.refresh_session()
         resp = self.get(f"ui/orgunit/core/{uuid}/edit")
         resp.raise_for_status()
@@ -468,6 +492,10 @@ class OS2sofdGuiClient(httpx.Client):
         if wrong_keys := set(json.keys()) ^ expected_keys:
             raise ValueError(f"JSON contains unexpected keys: {wrong_keys}. Expected: {expected_keys}")
 
+        last_commit = latest_commit_hash(repos="OS2sofd/os2sofd", path="ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java")
+        if last_commit != "f31185bcb65870d0277109c965cf78a7dd232b71":
+            raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
+
         self.refresh_session()
         resp = self.post(f"rest/orgunit/{uuid}/update/coreInfo", json=json)
         resp.raise_for_status()
@@ -482,6 +510,10 @@ class OS2sofdGuiClient(httpx.Client):
         Returns:
             List of addresses.
         """
+        last_commit = latest_commit_hash(repos="OS2sofd/os2sofd", path="ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/dto/PostDTO.java")
+        if last_commit != "a700beeb959521e9c422933bc0703901da12cc15":
+            raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
+
         self.refresh_session()
         resp = self.get(f"ui/orgunit/postsTab/{uuid}")
         resp.raise_for_status()
@@ -513,6 +545,9 @@ class OS2sofdGuiClient(httpx.Client):
         if wrong_keys := set(address.keys()) ^ expected_keys:
             raise ValueError(f"Address contains wrong or missing keys: {wrong_keys}. Expected: {expected_keys}")
 
+        last_commit = latest_commit_hash(repos="OS2sofd/os2sofd", path="ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/dto/PostDTO.java")
+        if last_commit != "a700beeb959521e9c422933bc0703901da12cc15":
+            raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
         self.refresh_session()
         headers = self.headers.copy()
