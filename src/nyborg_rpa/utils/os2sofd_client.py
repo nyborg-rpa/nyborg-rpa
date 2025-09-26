@@ -3,6 +3,7 @@ import os
 import sys
 from asyncio import WindowsProactorEventLoopPolicy
 from concurrent.futures import ThreadPoolExecutor
+from typing import TypedDict
 
 import httpx
 from bs4 import BeautifulSoup
@@ -11,6 +12,16 @@ from playwright.sync_api import sync_playwright
 
 from nyborg_rpa.utils.auth import get_user_login_info
 
+
+class OrgAddress(TypedDict):
+    id: str
+    street: str
+    localname: str
+    postalCode: str
+    city: str
+    country: str
+    returnAddress: bool
+    prime: bool
 
 class OS2sofdApiClient(httpx.Client):
 
@@ -460,3 +471,29 @@ class OS2sofdGuiClient(httpx.Client):
         self.refresh_session()
         resp = self.post(f"rest/orgunit/{uuid}/update/coreInfo", json=json)
         resp.raise_for_status()
+
+    def get_organization_addresses(self, uuid: str) -> list[dict]:
+        """
+        Fetch organization addresses.
+
+        Args:
+            uuid: The UUID of the organization.
+
+        Returns:
+            List of addresses.
+        """
+        self.refresh_session()
+        resp = self.get(f"ui/orgunit/postsTab/{uuid}")
+        resp.raise_for_status()
+        html = resp.text
+        soup = BeautifulSoup(html, "html.parser")
+
+        find_all_address = soup.find_all("a", {"onclick": "openPostEditModal(this);"})
+
+        addresses = []
+        for row in find_all_address:
+            address = {k: row.get(f"data-{k.lower()}") for k in OrgAddress.__annotations__.keys()}
+            address = {k: (v.lower() == "true" if v in ["true", "false"] else v) for k, v in address.items()}
+            addresses.append(address)
+
+        return addresses
