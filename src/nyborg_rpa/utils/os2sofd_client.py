@@ -5,6 +5,7 @@ from asyncio import WindowsProactorEventLoopPolicy
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 
@@ -381,3 +382,64 @@ class OS2sofdGuiClient(httpx.Client):
                 path=c.get("path"),
             )
 
+    def get_organization_coreinfo(self, uuid: str) -> dict | None:
+        """
+        Fetch core organization data.
+
+        Args:
+            uuid: The UUID of the organization.
+
+        Returns:
+            Dict with organization information if found, otherwise None.
+        """
+
+        self.refresh_session()
+        resp = self.get(f"ui/orgunit/core/{uuid}/edit")
+        resp.raise_for_status()
+        html = resp.text
+        soup = BeautifulSoup(html, "html.parser")
+
+        organisation_coreinfo = {}
+        fields_ids = [
+            "sourceName",
+            "parentName",
+            "parent",
+            "shortname",
+            "displayName",
+            "manager",
+            "search_person",
+            "cvr",
+            "senr",
+            "pnr",
+            "costBearer",
+            "ean",
+            "orgUnitType",
+            "doNotTransferToFKOrg",
+        ]
+        find_all_elements = soup.find_all(["select", "input"], id=lambda x: x in fields_ids)
+        elements_by_id = {el.get("id"): el for el in find_all_elements}
+
+        for field_id in fields_ids:
+            element = elements_by_id.get(field_id)
+
+            match field_id:
+
+                case "doNotTransferToFKOrg":
+                    organisation_coreinfo[field_id] = soup.find("input", {"id": "doNotTransferToFKOrgCheckbox"}).has_attr("checked")
+
+                case "orgUnitType":
+                    value = element.find("option", selected=True).get("value")
+                    organisation_coreinfo[field_id] = value if value != "" else None
+
+                case "cvr" | "senr" | "pnr" | "ean":
+                    if element:
+                        value = element["value"]
+                        organisation_coreinfo[field_id] = int(value) if value != "" else None
+                    else:
+                        organisation_coreinfo[field_id] = None
+
+                case _:
+                    value = element["value"]
+                    organisation_coreinfo[field_id] = value if value != "" else None
+
+        return organisation_coreinfo
