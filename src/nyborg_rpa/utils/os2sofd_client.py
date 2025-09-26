@@ -497,3 +497,25 @@ class OS2sofdGuiClient(httpx.Client):
             addresses.append(address)
 
         return addresses
+
+    def edit_or_create_organization_address(self, *, uuid: str, address: OrgAddress) -> None:
+        """
+        Update organization address.
+
+        Args:
+            uuid: The UUID of the organization.
+            address: The address data to update or create.
+        """
+        if not isinstance(address, dict):
+            raise TypeError(f"json must be a dict, but got {type(address).__name__}")
+
+        expected_keys = set(OrgAddress.__annotations__.keys())
+        if wrong_keys := set(address.keys()) ^ expected_keys:
+            raise ValueError(f"Address contains wrong or missing keys: {wrong_keys}. Expected: {expected_keys}")
+
+
+        self.refresh_session()
+        headers = self.headers.copy()
+        headers["Uuid"] = uuid
+        resp = self.post(f"https://nyborg.sofd.io/rest/orgunit/editOrCreatePost", json=address, headers=headers)
+        resp.raise_for_status()
