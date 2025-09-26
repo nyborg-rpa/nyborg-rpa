@@ -325,3 +325,59 @@ class OS2sofdGuiClient(httpx.Client):
 
         return session_info
 
+    def refresh_session(self) -> None:
+
+        resp = self.get("ui/orgunit")
+        if resp.status_code == 200:
+            return
+        elif resp.status_code != 302:
+            resp.raise_for_status()
+
+        try:
+            p = sync_playwright().start()
+        except Exception:
+            if sys.platform == "win32":
+                asyncio.set_event_loop_policy(WindowsProactorEventLoopPolicy())
+
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                return executor.submit(self.refresh_session).result()
+
+        browser = p.chromium.launch(args=["--auth-server-allowlist=_"], headless=True)
+        context = browser.new_context(
+            http_credentials={"username": self.user, "password": self.password},
+        )
+        page = context.new_page()
+        csrf_token = ""
+
+        def handle_request(request):
+            nonlocal csrf_token
+            h = request.headers
+            if "x-csrf-token" in h:
+                csrf_token = h["x-csrf-token"]
+
+        page.on("request", handle_request)
+
+        page.goto(f"https://{self.kommune}.sofd.io/saml/SSO")
+        page.goto(f"https://{self.kommune}.sofd.io/ui/orgunit")
+
+        cookies = context.cookies()
+        user_agent = page.evaluate("() => navigator.userAgent")
+
+        browser.close()
+        p.stop()
+
+        self.headers.update(
+            {
+                "User-Agent": user_agent,
+                "x-csrf-token": csrf_token,
+                "Content-Type": "application/json",
+            }
+        )
+        for c in cookies:
+            self.cookies.set(
+                name=c["name"],
+                value=c["value"],
+                domain=c.get("domain"),
+                path=c.get("path"),
+            )
+
