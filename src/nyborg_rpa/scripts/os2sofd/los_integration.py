@@ -9,10 +9,11 @@ from tqdm import tqdm
 
 from nyborg_rpa.utils.email import send_email
 from nyborg_rpa.utils.excel import df_to_excel_table
-from nyborg_rpa.utils.os2sofd_client import OS2sofdApiClient
+from nyborg_rpa.utils.os2sofd_client import OS2sofdApiClient, OS2sofdGuiClient
 from nyborg_rpa.utils.pad import dispatch_pad_script
 
 os2_api_client: OS2sofdApiClient
+os2_gui_client: OS2sofdGuiClient
 
 
 def parse_address_details(address: str) -> dict:
@@ -34,9 +35,11 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
     """Merge LOS data into OS2sofd and send rapport with mismatch."""
 
     global os2_api_client
+    global os2_gui_client
 
     load_dotenv(override=True)
     os2_api_client = OS2sofdApiClient(kommune="nyborg")
+    os2_gui_client = OS2sofdGuiClient(user="Roboit", kommune="nyborg")
     working_dir: Path = Path(working_dir)
 
     # read LOS and SD files
@@ -158,31 +161,38 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
             )
 
         # parse address and pnr from LOS data
-        # and patch organization with new address and pnr
+        # edit organization with new pnr
+        org_coreinfo = os2_gui_client.get_organization_coreinfo(uuid=org["Uuid"])
+        pnr: str | None = row["p-nummer"] or None
+        if pnr is not None and not pnr.isdigit():
+            orgs_without_los_match += [org]
+            continue
+
+        org_coreinfo["pnr"] = pnr
+        os2_gui_client.post_organization_coreinfo(uuid=org["Uuid"], json=org_coreinfo)
+
+        # edit organization with new address
         address_details = parse_address_details(address=row["adresse"])
-        pnr = row["p-nummer"] or "0"
-        post_addresses = [
-            {
-                "master": "RPA",
-                "masterId": "rpa",
+        org_addresses = os2_gui_client.get_organization_addresses(uuid=org["Uuid"])
+        primary_address = next((address for address in org_addresses if address["prime"]), None)
+
+        if primary_address is None:
+            primary_address = {
+                "id": "",
                 "street": address_details["street"],
                 "postalCode": address_details["zip_code"],
                 "city": address_details["city"],
                 "localname": "",
                 "country": "Danmark",
-                "addressProtected": False,
+                "returnAddress": True,
                 "prime": True,
             }
-        ]
+        else:
+            primary_address["street"] = address_details["street"]
+            primary_address["postalCode"] = address_details["zip_code"]
+            primary_address["city"] = address_details["city"]
 
-        tqdm.write(f"Updating {org_name!r} with manager={manager_username!r}, address={address_details!r} and {pnr=!r}.")
-        os2_api_client.patch_organization(
-            uuid=org["Uuid"],
-            json={
-                "postAddresses": post_addresses,
-                "pnr": pnr,
-            },
-        )
+        os2_gui_client.edit_or_create_organization_address(uuid=org["Uuid"], address=primary_address)
 
     # #️⃣ STEP 3: Send report with organizations without match in LOS data if monday
     if datetime.today().strftime("%A") != "Monday":
