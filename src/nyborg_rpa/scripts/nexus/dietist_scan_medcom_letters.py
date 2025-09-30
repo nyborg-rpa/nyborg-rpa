@@ -160,6 +160,8 @@ def find_active_organisation(
 
 def generate_report_email(letters: list[dict]) -> str:
 
+    global nexus_environment
+
     typography_style = "font-family: Arial, sans-serif; font-size: 12px"
     body = f"""<!DOCTYPE html>
     <html>
@@ -167,37 +169,34 @@ def generate_report_email(letters: list[dict]) -> str:
     <p>Robotten har netop scannet nye breve og identificeret relevante ord i følgende dokumenter:</p>
     <table border="1" cellpadding="4" cellspacing="0" width="100%" style="border-collapse: collapse; {typography_style};">
         <tr style="background-color: #dddddd; font-weight: bold;">
-        <td>Emne</td>
-        <td>Dato</td>
-        <td>Patient ID</td>
-        <td>Link</td>
+        <td>Patient</td>
+        <td>Dato (seneste)</td>
+        <td>Emner</td>
         <td>Nøgleord</td>
         </tr>"""
 
-    # group and sort by district
-    letters_by_district = defaultdict(list)
+    districts = defaultdict(lambda: defaultdict(list))
     for letter in letters:
         if letter["keywords"]:
-            letters_by_district[letter["district"]] += [letter]
+            districts[letter["district"]][letter["patient"]["id"]].append(letter)
 
-    for district in sorted(letters_by_district.keys()):
-
+    for district in sorted(districts.keys()):
         body += f"""
         <tr style="background-color: #f0f0f0; font-weight: bold;">
-        <td colspan="5">{district}</td>
+        <td colspan="4">{district}</td>
         </tr>"""
 
-        # sort letters within each district by patient ID first, then by date
-        sorted_letters = sorted(letters_by_district[district], key=lambda x: (x["patient"]["id"], -x["date"].timestamp()))
+        for patient_id, items in sorted(districts[district].items(), key=lambda x: x[0]):
+            latest_item = max(items, key=lambda x: x["date"])
+            activities = ", ".join(sorted({i["name"] for i in items}))
+            keywords = ", ".join(sorted({kw for i in items for kw in i["keywords"]}))
+            date_str = latest_item["date"].strftime("%Y-%m-%d %H:%M:%S")
 
-        for letter in sorted_letters:
-            keywords = ", ".join(letter["keywords"])
             body += f"""
             <tr>
-            <td>{letter["name"]}</td>
-            <td>{letter["date"].strftime("%Y-%m-%d %H:%M:%S")}</td>
-            <td>{letter["patient"]["id"]}</td>
-            <td><a href="https://nyborg.{nexus_environment}.kmd.dk/citizen/{letter["patient"]["id"]}/correspondence/inbox" style="color: #0000EE;">Åbn indbakke</a></td>
+            <td><a href="https://nyborg.{nexus_environment}.kmd.dk/citizen/{patient_id}/correspondence/inbox" style="color: #0000EE;">{patient_id}</a></td>
+            <td>{date_str}</td>
+            <td>{activities}</td>
             <td>{keywords}</td>
             </tr>"""
 
