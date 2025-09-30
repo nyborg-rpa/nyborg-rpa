@@ -136,6 +136,8 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
         if override_value:
             tqdm.write(f"Using override {org["Name"]!r} → {override_value!r}.")
 
+        tqdm.write(f"Processing {org["Name"]!r}...")
+
         # add Source field to indicate where the name came from
         org_name = override_value or org["Name"]
         org["Source"] = "RPA Override" if override_value else "LOS"
@@ -155,6 +157,7 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
         # set organization manager if present in LOS data
         if manager_username := row["Leder"]:
             manager_info = os2_api_client.get_user_by_username(manager_username)
+            tqdm.write(f"Updating {org_name!r} with manager={manager_username!r}.")
             os2_api_client.post_organization_manager(
                 organization_uuid=org["Uuid"],
                 user_uuid=manager_info.get("Uuid"),
@@ -169,6 +172,7 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
             continue
 
         org_coreinfo["pnr"] = pnr
+        tqdm.write(f"Updating {org_name!r} with {pnr=!r}.")
         os2_gui_client.post_organization_coreinfo(uuid=org["Uuid"], json=org_coreinfo)
 
         # edit organization with new address
@@ -192,6 +196,7 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
             primary_address["postalCode"] = address_details["zip_code"]
             primary_address["city"] = address_details["city"]
 
+        tqdm.write(f"Updating {org_name!r} with address={address_details!r}.")
         os2_gui_client.edit_or_create_organization_address(uuid=org["Uuid"], address=primary_address)
 
     # #️⃣ STEP 3: Send report with organizations without match in LOS data if monday
