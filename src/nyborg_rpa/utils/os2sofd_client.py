@@ -413,7 +413,7 @@ class OS2sofdGuiClient(httpx.Client):
                 path=c.get("path"),
             )
 
-    def get_organization_coreinfo(self, uuid: str) -> dict | None:
+    def get_organization_coreinfo(self, *, uuid: str, include_inherited_fkorg: bool = False) -> dict | None:
         """
         Fetch core organization data.
 
@@ -476,6 +476,9 @@ class OS2sofdGuiClient(httpx.Client):
                 case _:
                     value = element["value"]
                     organisation_coreinfo[field_id] = value if value != "" else None
+
+        if include_inherited_fkorg:
+            organisation_coreinfo["inheritedFkOrg"] = "Enheden er undtaget pga. nedarvning" in html
 
         return organisation_coreinfo
 
