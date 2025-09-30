@@ -176,6 +176,9 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
         os2_gui_client.post_organization_coreinfo(uuid=org["Uuid"], json=org_coreinfo)
 
         # edit organization with new address
+        if pd.isna(row["adresse"]):
+            orgs_without_los_match += [org]
+            continue
         address_details = parse_address_details(address=row["adresse"])
         org_addresses = os2_gui_client.get_organization_addresses(uuid=org["Uuid"])
         primary_address = next((address for address in org_addresses if address["prime"]), None)
