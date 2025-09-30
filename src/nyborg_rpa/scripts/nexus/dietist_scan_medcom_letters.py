@@ -40,7 +40,7 @@ def fetch_medcom_letters(activity_name: str) -> list[dict]:
 
     # fetch all activity lists and find the one matching the activity_name
     resp = nexus_client.get("preferences/ACTIVITY_LIST/")
-    activity_lists = resp.json()
+    activity_lists: list[dict] = resp.json()
 
     try:
         activity_link = next(item["_links"]["self"]["href"] for item in activity_lists if item["name"] == activity_name)
@@ -50,17 +50,17 @@ def fetch_medcom_letters(activity_name: str) -> list[dict]:
     # fetch the activity details
     resp = nexus_client.get(activity_link)
     discharge_report = resp.json()
-    content_link = discharge_report["_links"]["content"]["href"]
+    content_link: str = discharge_report["_links"]["content"]["href"]
 
     # fetch the content links for the activity
     resp = nexus_client.get(f"{content_link}&pageSize=50&from={from_date:%Y-%m-%dT%H:%M:%S}.000Z&to={to_date:%Y-%m-%dT%H:%M:%S}.999Z")
-    content_links = resp.json()
+    content_links: dict = resp.json()
 
     letters = []
     for page in content_links["pages"]:
 
         resp = nexus_client.get(page["_links"]["content"]["href"])
-        page_content = resp.json()
+        page_content: list[dict] = resp.json()
 
         for content in page_content:
             date = pd.to_datetime(content["date"], format="%Y-%m-%dT%H:%M:%S.%f%z", errors="coerce")
