@@ -65,11 +65,15 @@ def fetch_medcom_letters(activity_name: str) -> list[dict]:
         for content in page_content:
             date = pd.to_datetime(content["date"], format="%Y-%m-%dT%H:%M:%S.%f%z", errors="coerce")
             medcom_id = content["_links"]["referencedObject"]["href"].split("/")[-1]
+
+            if (num_patients := len(content["patients"])) != 1:
+                raise ValueError(f"Expected exactly one patient for letter {medcom_id}, got {num_patients}.")
+
             letters += [
                 {
                     "medcom_id": medcom_id,
                     "name": content["name"],
-                    "patients_id": content["patients"][0]["id"],
+                    "patient": content["patients"][0],
                     "date": date,
                     "link": content["_links"]["referencedObject"]["href"],
                 }
@@ -109,12 +113,12 @@ def get_organization_tree_info(name: str) -> dict:
 
 def find_active_organisation(
     *,
-    patient: str,
+    patient_id: str,
     district_ids: set,
     distric_tree: list,
 ) -> str:
 
-    resp = nexus_client.get(f"patients/{patient}/organizations")
+    resp = nexus_client.get(f"patients/{patient_id}/organizations")
     data = resp.json()
 
     def find_parent_by_id(item: list, id: str) -> bool:
@@ -184,7 +188,7 @@ def generate_report_email(letters: list[dict]) -> str:
         </tr>"""
 
         # sort letters within each district by patient ID first, then by date
-        sorted_letters = sorted(letters_by_district[district], key=lambda x: (x["patients_id"], -x["date"].timestamp()))
+        sorted_letters = sorted(letters_by_district[district], key=lambda x: (x["patient"]["id"], -x["date"].timestamp()))
 
         for letter in sorted_letters:
             keywords = ", ".join(letter["keywords"])
@@ -192,8 +196,8 @@ def generate_report_email(letters: list[dict]) -> str:
             <tr>
             <td>{letter["name"]}</td>
             <td>{letter["date"].strftime("%Y-%m-%d %H:%M:%S")}</td>
-            <td>{letter["patients_id"]}</td>
-            <td><a href="https://nyborg.{nexus_environment}.kmd.dk/citizen/{letter["patients_id"]}/correspondence/inbox" style="color: #0000EE;">Åbn indbakke</a></td>
+            <td>{letter["patient"]["id"]}</td>
+            <td><a href="https://nyborg.{nexus_environment}.kmd.dk/citizen/{letter["patient"]["id"]}/correspondence/inbox" style="color: #0000EE;">Åbn indbakke</a></td>
             <td>{keywords}</td>
             </tr>"""
 
@@ -274,7 +278,7 @@ def scan_medcom_letters_and_send_report(*, recipients: list[str]):
         # if letter contains keywords, add to list of matching letters
         # which will be used to generate the report email
         if keywords:
-            district = find_active_organisation(patient=letter["patients_id"], district_ids=org_info["district_ids"], distric_tree=org_info["distric_tree"])
+            district = find_active_organisation(patient_id=letter["patient"]["id"], district_ids=org_info["district_ids"], distric_tree=org_info["distric_tree"])
             letter |= {"keywords": keywords, "district": district}
             letters_to_report += [letter]
 
