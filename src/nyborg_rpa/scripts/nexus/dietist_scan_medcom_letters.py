@@ -246,6 +246,9 @@ def scan_medcom_letters_and_send_report(*, recipients: list[str]):
     # filter out previously processed letters
     letters = [letter for letter in letters if letter["medcom_id"] not in prev_letters]
 
+    # filter out letters where patient status is "Indlagt"
+    letters = [letter for letter in letters if letter["patient"]["patientState"]["name"] != "Indlagt"]
+
     letters_to_report = []
     for letter in (pbar := tqdm(letters, desc="Processing letters")):
 
