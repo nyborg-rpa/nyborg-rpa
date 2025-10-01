@@ -19,7 +19,7 @@ def helbredstillaeg_manual_mail_report(*, sharepoint_id: int, message: str | Non
     output = json.loads(sp_item["Output"])
     cpr = str(sp_item["CPR"])
     treatment_type = str(sp_item["Behandlingsform"])
-    treatment_date = pd.to_datetime(sp_item["Behandlingsdato"]).strftime("%Y-%m-%d")
+    treatment_date = pd.to_datetime(sp_item["Behandlingsdato"]).astimezone("Europe/Copenhagen").strftime("%Y-%m-%d")
     has_sygesikringsandel = bool(sp_item["HarSygesikringsandel_x003f_"])
     has_ydernummer = bool(sp_item["HarYdernummer_x003f_"])
     health_allowance_pct = f"{output["health_pct"]:.0%}"

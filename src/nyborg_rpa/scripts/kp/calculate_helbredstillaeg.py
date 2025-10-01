@@ -152,7 +152,7 @@ def calculate_helbredstillaeg_for_case(data: HelbredstillaegData) -> dict:
     # check treatment date
     print("checking treatment date...")
     today = pd.Timestamp.now()
-    treatment_date = pd.to_datetime(str(data["sharepoint_item"]["Behandlingsdato"]), format="%Y-%m-%dT%H:%M:%SZ")
+    treatment_date = pd.to_datetime(str(data["sharepoint_item"]["Behandlingsdato"]), format="%Y-%m-%dT%H:%M:%SZ", utc=True).astimezone("Europe/Copenhagen").tz_localize(None)
 
     # is the treatment date in the future?
     if treatment_date > today:
