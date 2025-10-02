@@ -11,6 +11,34 @@ EMAIL_ATTACHMENT_MAX_SIZE_BYTES = 3 * 1024 * 1024  # 3 MB
 """Microsoft Graph file attachment file size limit."""
 
 
+def get_token() -> str:
+    load_dotenv(override=True)
+
+    tenant_id = os.getenv("MS_GRAPH_TENANT_ID")
+    client_id = os.getenv("MS_GRAPH_CLIENT_ID")
+    client_secret = os.getenv("MS_GRAPH_CLIENT_SECRET")
+
+    assert tenant_id, "Environment variable MS_GRAPH_TENANT_ID is not set"
+    assert client_id, "Environment variable MS_GRAPH_CLIENT_ID is not set"
+    assert client_secret, "Environment variable MS_GRAPH_CLIENT_SECRET is not set"
+
+    # fetch access token
+    resp = requests.post(
+        url=f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
+        data={
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "scope": "https://graph.microsoft.com/.default",
+        },
+    )
+
+    resp.raise_for_status()
+    access_token = resp.json()["access_token"]
+
+    return access_token
+
+
 def convert_file_to_graph_attachment(filepath: Path | str) -> dict:
 
     filepath = Path(filepath)
@@ -47,31 +75,7 @@ def send_email(
     assert isinstance(recipients, list) and all(isinstance(r, str) for r in recipients), "Recipients must be a list of strings"
     assert isinstance(sender, str), "Sender must be a string"
 
-    # load environment variables
-    load_dotenv(override=True)
-
-    tenant_id = os.getenv("MS_GRAPH_TENANT_ID")
-    client_id = os.getenv("MS_GRAPH_CLIENT_ID")
-    client_secret = os.getenv("MS_GRAPH_CLIENT_SECRET")
-
-    assert tenant_id, "Environment variable MS_GRAPH_TENANT_ID is not set"
-    assert client_id, "Environment variable MS_GRAPH_CLIENT_ID is not set"
-    assert client_secret, "Environment variable MS_GRAPH_CLIENT_SECRET is not set"
-
-    # fetch access token
-    resp = requests.post(
-        url=f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
-        data={
-            "grant_type": "client_credentials",
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "scope": "https://graph.microsoft.com/.default",
-        },
-    )
-
-    resp.raise_for_status()
-    access_token = resp.json()["access_token"]
-
+    access_token = get_token()
     # construct email message
     message = {
         "subject": subject,
