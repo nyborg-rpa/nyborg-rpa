@@ -1,6 +1,7 @@
 import base64
 import mimetypes
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Literal
 
@@ -100,3 +101,53 @@ def send_email(
     )
     resp.raise_for_status()
     print(f"Sent email to {recipients} from {sender=!r} with {subject=!r}.")
+
+
+def get_messages(
+    *,
+    recipient: str,
+    folder: str | Literal["Inbox", "SentItems", "DeletedItems", "Archive"] = "Inbox",
+    sender: str | None = None,
+    received_from: datetime | None = None,
+    received_to: datetime | None = None,
+    subject_contains: str | None = None,
+    only_unread: bool | None = False,
+    top: int | None = 100,
+) -> dict | None:
+
+    assert received_to is None or received_to.tzinfo, "received_to must be timezone-aware"
+    assert received_from is None or received_from.tzinfo, "received_from must be timezone-aware"
+
+    access_token = get_token()
+    url = f"https://graph.microsoft.com/v1.0/users/{recipient}/mailFolders/{folder}/messages"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+    params = {
+        "$top": str(top),
+    }
+    if subject_contains:
+        params["$search"] = f'"{subject_contains}"'
+        headers["ConsistencyLevel"] = "eventual"
+    # else:
+    #     params["$orderby"] = "receivedDateTime desc"
+
+    # $filter for afsender, ulæst, dato, attachments
+    parts = []
+    if sender:
+        parts.append(f"from/emailAddress/address eq '{sender}'")
+    if only_unread:
+        parts.append(f"isRead eq {only_unread}")
+    if received_from:
+        parts.append(f"receivedDateTime ge {received_from.isoformat()}")
+    if received_to:
+        parts.append(f"receivedDateTime le {received_to.isoformat()}")
+
+    flt = " and ".join(parts)
+    if flt:
+        params["$filter"] = flt
+
+    resp = requests.get(url, headers=headers, params=params, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
