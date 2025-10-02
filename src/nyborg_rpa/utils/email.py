@@ -1,4 +1,5 @@
 import base64
+import getpass
 import mimetypes
 import os
 from datetime import datetime
@@ -151,3 +152,37 @@ def get_messages(
     resp = requests.get(url, headers=headers, params=params, timeout=30)
     resp.raise_for_status()
     return resp.json()
+
+
+def get_attachments(
+    *,
+    recipient: str,
+    folder: str | Literal["Inbox", "SentItems", "DeletedItems", "Archive"] = "Inbox",
+    message_id: str,
+    save_to: str | Path | None = None,
+    ignore_filtype: list[str] | None = None,
+) -> list[Path]:
+    access_token = get_token()
+    url = f"https://graph.microsoft.com/v1.0/users/{recipient}/mailFolders/{folder}/messages/{message_id}/attachments"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+    resp = requests.get(url, headers=headers, timeout=30)
+    resp.raise_for_status()
+    attachments = resp.json().get("value", [])
+
+    if save_to:
+        save_to = Path(save_to)
+    else:
+        recipient = getpass.getuser()
+        save_to = Path(f"C:/Users/{recipient}/Downloads")
+
+    attachments_list = []
+    for att in attachments:
+        if ignore_filtype and any(att["name"].endswith(ext) for ext in ignore_filtype):
+            continue
+        Path(save_to / att["name"]).write_bytes(base64.b64decode(att["contentBytes"]))
+        attachments_list.append(Path(save_to / att["name"]))
+
+    return attachments_list
