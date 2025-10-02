@@ -186,3 +186,17 @@ def get_attachments(
         attachments_list.append(Path(save_to / att["name"]))
 
     return attachments_list
+
+
+def move_message(*, recipient: str, message_id: str, destination_folder: str | Literal["Inbox", "SentItems", "DeletedItems", "Archive"]) -> dict:
+    access_token = get_token()
+    url = f"https://graph.microsoft.com/v1.0/users/{recipient}/messages/{message_id}/move"
+    json = {f"destinationId": f"{destination_folder}"}
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+    resp = requests.post(url, headers=headers, json=json, timeout=30)
+    resp.raise_for_status()
+
+    return resp.json()
