@@ -63,6 +63,9 @@ def helbredstillaeg_manual_mail_report(*, sharepoint_id: int, message: str | Non
         case "Indtastet mere end 1 hovedbehandling":
             msg = "Der er indtastet mere en 1 hovedbehandling, det er aftalt at der kun må være max 1 hovedbehandling pr kvittering. Er derfor sendt til manuel behandling."
 
+        case "Behandlingsdato er i fremtiden!":
+            msg = "Behandlingsdato er i fremtiden, og er derfor sendt til manuel behandling."
+
         case _:
             raise ValueError(f"ikke tilføjet!: {output["status_message"]}")
 
