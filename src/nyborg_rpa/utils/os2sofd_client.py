@@ -27,18 +27,29 @@ class OrgAddress(TypedDict):
 
 
 @lru_cache(maxsize=None)
-def latest_commit_hash(repos: str, path: str) -> str:
+def latest_commit_hash(
+    *,
+    repository: str,
+    path: str,
+    sha: str = "main",
+) -> str:
     """
-    Get the latest git commit hash for a given file.
+    Get the latest commit hash (SHA) for a specific file in a GitHub repository.
 
-    Args: path: The file path to check.
+    Args:
+        repository: The GitHub repository in the format "owner/repo".
+        path: The file path within the repository.
+        sha: The branch or commit SHA to start from. Defaults to "main".
     """
-    url = f"https://api.github.com/repos/{repos}/commits?path={path}&sha=main"
+
+    owner, repo = repository.split("/")
+    url = f"https://api.github.com/repos/{owner}/{repo}/commits?path={path}&sha={sha}"
     resp = requests.get(url)
     resp.raise_for_status()
+
     commits = resp.json()
     if not commits:
-        raise ValueError("No commits found for the specified file.")
+        raise FileNotFoundError(f"No commits found for file at {url=!r}")
 
     return commits[0]["sha"]
 
@@ -424,7 +435,10 @@ class OS2sofdGuiClient(httpx.Client):
             Dict with organization information if found, otherwise None.
         """
 
-        last_commit = latest_commit_hash(repos="OS2sofd/os2sofd", path="ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java")
+        last_commit = latest_commit_hash(
+            repository="OS2sofd/os2sofd",
+            path="ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java",
+        )
         if last_commit != "f31185bcb65870d0277109c965cf78a7dd232b71":
             raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
@@ -495,7 +509,7 @@ class OS2sofdGuiClient(httpx.Client):
         if wrong_keys := set(json.keys()) ^ expected_keys:
             raise ValueError(f"JSON contains unexpected keys: {wrong_keys}. Expected: {expected_keys}")
 
-        last_commit = latest_commit_hash(repos="OS2sofd/os2sofd", path="ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java")
+        last_commit = latest_commit_hash(repository="OS2sofd/os2sofd", path="ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java")
         if last_commit != "f31185bcb65870d0277109c965cf78a7dd232b71":
             raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
@@ -513,7 +527,8 @@ class OS2sofdGuiClient(httpx.Client):
         Returns:
             List of addresses.
         """
-        last_commit = latest_commit_hash(repos="OS2sofd/os2sofd", path="ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/dto/PostDTO.java")
+
+        last_commit = latest_commit_hash(repository="OS2sofd/os2sofd", path="ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/dto/PostDTO.java")
         if last_commit != "a700beeb959521e9c422933bc0703901da12cc15":
             raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
@@ -548,7 +563,7 @@ class OS2sofdGuiClient(httpx.Client):
         if wrong_keys := set(address.keys()) ^ expected_keys:
             raise ValueError(f"Address contains wrong or missing keys: {wrong_keys}. Expected: {expected_keys}")
 
-        last_commit = latest_commit_hash(repos="OS2sofd/os2sofd", path="ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/dto/PostDTO.java")
+        last_commit = latest_commit_hash(repository="OS2sofd/os2sofd", path="ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/dto/PostDTO.java")
         if last_commit != "a700beeb959521e9c422933bc0703901da12cc15":
             raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
