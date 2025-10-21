@@ -1,5 +1,4 @@
 import requests
-from tqdm.auto import tqdm
 
 
 def latest_commit_hash(
@@ -18,12 +17,12 @@ def latest_commit_hash(
     """
 
     owner, repo = repository.split("/")
-    url = f"https://api.github.com/repos/{owner}/{repo}/commits?path={path}&sha={sha}"
-    resp = requests.get(url)
+    url = f"https://api.github.com/repos/{owner}/{repo}/commits"
+    resp = requests.get(url, params={"path": path, "sha": sha})
     resp.raise_for_status()
 
     commits = resp.json()
     if not commits:
-        raise FileNotFoundError(f"No commits found for file at {url=!r}")
+        raise FileNotFoundError(f"No commits found for file at {resp.url!r}")
 
     return commits[0]["sha"]
