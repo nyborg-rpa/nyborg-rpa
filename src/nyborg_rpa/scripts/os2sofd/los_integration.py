@@ -172,13 +172,15 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
             continue
 
         org_coreinfo["pnr"] = pnr
-        tqdm.write(f"Updating {org_name!r} with {pnr=!r}.")
-        os2_gui_client.post_organization_coreinfo(uuid=org["Uuid"], json=org_coreinfo)
+        tqdm.write(f"Updating {org_name!r} with {pnr=!r}...")
+        os2_gui_client.post_organization_coreinfo(uuid=org["Uuid"], data=org_coreinfo)
 
         # edit organization with new address
         if pd.isna(row["adresse"]):
             orgs_without_los_match += [org]
             continue
+
+        # if primary address exists, update it; otherwise create new primary address
         address_details = parse_address_details(address=row["adresse"])
         org_addresses = os2_gui_client.get_organization_addresses(uuid=org["Uuid"])
         primary_address = next((address for address in org_addresses if address["prime"]), None)
@@ -194,12 +196,13 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
                 "returnAddress": True,
                 "prime": True,
             }
+
         else:
             primary_address["street"] = address_details["street"]
             primary_address["postalCode"] = address_details["zip_code"]
             primary_address["city"] = address_details["city"]
 
-        tqdm.write(f"Updating {org_name!r} with address={address_details!r}.")
+        tqdm.write(f"Updating {org_name!r} with address={address_details!r}...")
         os2_gui_client.edit_or_create_organization_address(uuid=org["Uuid"], address=primary_address)
 
     # #️⃣ STEP 3: Send report with organizations without match in LOS data if monday

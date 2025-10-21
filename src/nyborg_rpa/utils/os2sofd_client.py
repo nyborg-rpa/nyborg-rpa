@@ -3,7 +3,7 @@ import os
 import sys
 from asyncio import WindowsProactorEventLoopPolicy
 from concurrent.futures import ThreadPoolExecutor
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 import httpx
 from bs4 import BeautifulSoup
@@ -14,6 +14,24 @@ from tqdm import tqdm
 
 from nyborg_rpa.utils.auth import get_user_login_info
 from nyborg_rpa.utils.git import latest_commit_hash
+
+
+class OrgCoreInfo(TypedDict):
+    sourceName: str | None
+    parentName: str | None
+    parent: str | None
+    shortname: str | None
+    displayName: str | None
+    manager: str | None
+    search_person: str | None
+    cvr: int | None
+    senr: int | None
+    pnr: int | None
+    costBearer: str | None
+    ean: int | None
+    orgUnitType: str | None
+    doNotTransferToFKOrg: bool
+    inheritedFkOrg: NotRequired[bool]
 
 
 class OrgAddress(TypedDict):
@@ -60,7 +78,7 @@ class OS2sofdApiClient(httpx.Client):
         Fetch user information based on CPR number.
 
         Args:
-            cpr: The CPR number of the user.
+            cpr: The CPR number of the user on the format DDMMYYXXXX.
 
         Returns:
             Dict with user information if found, otherwise None.
@@ -372,12 +390,13 @@ class OS2sofdGuiClient(httpx.Client):
 
         return session
 
-    def get_organization_coreinfo(self, *, uuid: str, include_inherited_fkorg: bool = False) -> dict | None:
+    def get_organization_coreinfo(self, *, uuid: str, include_inherited_fkorg: bool = False) -> OrgCoreInfo:
         """
         Fetch core organization data.
 
         Args:
             uuid: The UUID of the organization.
+            include_inherited_fkorg: Whether to check for inherited FK organization exemption.
 
         Returns:
             Dict with organization information if found, otherwise None.
@@ -388,71 +407,58 @@ class OS2sofdGuiClient(httpx.Client):
         html = resp.text
         soup = BeautifulSoup(html, "html.parser")
 
-        organisation_coreinfo = {}
-        fields_ids = [
-            "sourceName",
-            "parentName",
-            "parent",
-            "shortname",
-            "displayName",
-            "manager",
-            "search_person",
-            "cvr",
-            "senr",
-            "pnr",
-            "costBearer",
-            "ean",
-            "orgUnitType",
-            "doNotTransferToFKOrg",
-        ]
-        find_all_elements = soup.find_all(["select", "input"], id=lambda x: x in fields_ids)
-        elements_by_id = {el.get("id"): el for el in find_all_elements}
+        fields = list(OrgCoreInfo.__annotations__)
+        all_elements = soup.find_all(["select", "input"], id=lambda x: x in fields)
+        elements_by_id = {el.get("id"): el for el in all_elements}
 
-        for field_id in fields_ids:
-            element = elements_by_id.get(field_id)
+        org_coreinfo = {}
+        for field in fields:
 
-            match field_id:
+            element = elements_by_id.get(field)
+
+            match field:
 
                 case "doNotTransferToFKOrg":
-                    organisation_coreinfo[field_id] = soup.find("input", {"id": "doNotTransferToFKOrgCheckbox"}).has_attr("checked")
+                    org_coreinfo[field] = soup.find("input", {"id": "doNotTransferToFKOrgCheckbox"}).has_attr("checked")
 
                 case "orgUnitType":
                     value = element.find("option", selected=True).get("value")
-                    organisation_coreinfo[field_id] = value if value != "" else None
+                    org_coreinfo[field] = value if value != "" else None
 
                 case "cvr" | "senr" | "pnr" | "ean":
                     if element:
                         value = element["value"]
-                        organisation_coreinfo[field_id] = int(value) if value != "" else None
+                        org_coreinfo[field] = int(value) if value != "" else None
                     else:
-                        organisation_coreinfo[field_id] = None
+                        org_coreinfo[field] = None
+
+                case "inheritedFkOrg":
+                    if include_inherited_fkorg:
+                        org_coreinfo["inheritedFkOrg"] = "Enheden er undtaget pga. nedarvning" in html
 
                 case _:
                     value = element["value"]
-                    organisation_coreinfo[field_id] = value if value != "" else None
+                    org_coreinfo[field] = value if value != "" else None
 
-        if include_inherited_fkorg:
-            organisation_coreinfo["inheritedFkOrg"] = "Enheden er undtaget pga. nedarvning" in html
+        return org_coreinfo
 
-        return organisation_coreinfo
-
-    def post_organization_coreinfo(self, *, uuid: str, json: dict) -> None:
+    def post_organization_coreinfo(self, *, uuid: str, data: OrgCoreInfo) -> None:
         """
         Update organization coreinfo details and return whether data was changed.
 
         Args:
             uuid: The UUID of the organization.
-            json: The JSON data to update the organization with.
+            data: The JSON data to update the organization with; must include all required keys.
         """
 
-        expected_keys = {"sourceName", "parentName", "parent", "shortname", "displayName", "manager", "search_person", "cvr", "senr", "pnr", "costBearer", "ean", "orgUnitType", "doNotTransferToFKOrg"}
-        if wrong_keys := set(json.keys()) ^ expected_keys:
-            raise ValueError(f"JSON contains unexpected keys: {wrong_keys}. Expected: {expected_keys}")
+        required_keys = set(OrgCoreInfo.__required_keys__)
+        if wrong_keys := set(data.keys()) ^ required_keys:
+            raise ValueError(f"Data contains wrong or missing keys: {wrong_keys}. Expected: {required_keys}")
 
-        resp = self.post(f"rest/orgunit/{uuid}/update/coreInfo", json=json)
+        resp = self.post(f"rest/orgunit/{uuid}/update/coreInfo", json=data)
         resp.raise_for_status()
 
-    def get_organization_addresses(self, uuid: str) -> list[dict]:
+    def get_organization_addresses(self, uuid: str) -> list[OrgAddress]:
         """
         Fetch organization addresses.
 
@@ -468,13 +474,13 @@ class OS2sofdGuiClient(httpx.Client):
         html = resp.text
         soup = BeautifulSoup(html, "html.parser")
 
-        find_all_address = soup.find_all("a", {"onclick": "openPostEditModal(this);"})
+        address_elements = soup.find_all("a", {"onclick": "openPostEditModal(this);"})
 
         addresses = []
-        for row in find_all_address:
-            address = {k: row.get(f"data-{k.lower()}") for k in OrgAddress.__annotations__.keys()}
+        for el in address_elements:
+            address = {k: el.get(f"data-{k.lower()}") for k in OrgAddress.__annotations__.keys()}
             address = {k: (v.lower() == "true" if v in ["true", "false"] else v) for k, v in address.items()}
-            addresses.append(address)
+            addresses += [address]
 
         return addresses
 
@@ -490,9 +496,9 @@ class OS2sofdGuiClient(httpx.Client):
         if not isinstance(address, dict):
             raise TypeError(f"json must be a dict, but got {type(address).__name__}")
 
-        expected_keys = set(OrgAddress.__annotations__.keys())
-        if wrong_keys := set(address.keys()) ^ expected_keys:
-            raise ValueError(f"Address contains wrong or missing keys: {wrong_keys}. Expected: {expected_keys}")
+        required_keys = set(OrgAddress.__annotations__.keys())
+        if wrong_keys := set(address.keys()) ^ required_keys:
+            raise ValueError(f"Address contains wrong or missing keys: {wrong_keys}. Expected: {required_keys}")
 
         headers = {**self.headers, "Uuid": uuid}
         resp = self.post("https://nyborg.sofd.io/rest/orgunit/editOrCreatePost", json=address, headers=headers)
