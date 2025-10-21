@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
+from tqdm import tqdm
 
 from nyborg_rpa.utils.auth import get_user_login_info
 from nyborg_rpa.utils.git import latest_commit_hash
@@ -287,10 +288,28 @@ class OS2sofdGuiClient(httpx.Client):
             **kwargs,
         )
 
-        # init session and update headers and cookies
+    @property
+    def login_url(self) -> str:
+        return f"{self.base_url}/saml/SSO"
+
+    def login(self) -> None:
+        """Login to OS2sofd GUI and update session headers and cookies."""
+
+        tqdm.write(f"Logging in to {self.login_url!r} as {self.user!r}...")
         self.session = self._create_session()
         self.headers.update(self.session["headers"])
-        self.cookies.update(self.cookies)
+        for cookie in self.session["cookies"]:
+            self.cookies.set(cookie["name"], cookie["value"], domain=cookie.get("domain"), path=cookie.get("path"))
+
+    def request(self, method: str, url: str, **kwargs) -> httpx.Response:
+
+        resp = super().request(method, url, **kwargs)
+
+        # if we are redirected to login page, use login and retry request
+        if resp.status_code == 302 and resp.headers.get("Location") == self.login_url:
+            self.login()
+
+        return super().request(method, url, **kwargs)
 
     def _create_session(self) -> dict:
 
@@ -311,18 +330,18 @@ class OS2sofdGuiClient(httpx.Client):
         page = context.new_page()
 
         # login using SSO (http_credentials in context)
-        page.goto(f"{self.base_url}/saml/SSO")
+        page.goto(str(self.login_url))
 
         # extract csrf token, cookies, and user-agent
         page.goto(str(self.base_url))
+        user_agent = page.evaluate("() => navigator.userAgent")
         csrf_token = page.eval_on_selector('meta[name="_csrf"]', "el => el.content")
         cookies = context.cookies()
-        user_agent = page.evaluate("() => navigator.userAgent")
 
         browser.close()
         p.stop()
 
-        return {
+        session = {
             "cookies": cookies,
             "headers": {
                 "x-csrf-token": csrf_token,
@@ -331,61 +350,7 @@ class OS2sofdGuiClient(httpx.Client):
             },
         }
 
-    def refresh_session(self) -> None:
-
-        resp = self.get("ui/orgunit")
-        if resp.status_code == 200:
-            return
-        elif resp.status_code != 302:
-            resp.raise_for_status()
-
-        try:
-            p = sync_playwright().start()
-        except Exception:
-            if sys.platform == "win32":
-                asyncio.set_event_loop_policy(WindowsProactorEventLoopPolicy())
-
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                return executor.submit(self.refresh_session).result()
-
-        browser = p.chromium.launch(args=["--auth-server-allowlist=_"], headless=True)
-        context = browser.new_context(
-            http_credentials={"username": self.user, "password": self.password},
-        )
-        page = context.new_page()
-        csrf_token = ""
-
-        def handle_request(request):
-            nonlocal csrf_token
-            h = request.headers
-            if "x-csrf-token" in h:
-                csrf_token = h["x-csrf-token"]
-
-        page.on("request", handle_request)
-
-        page.goto(f"https://{self.kommune}.sofd.io/saml/SSO")
-        page.goto(f"https://{self.kommune}.sofd.io/ui/orgunit")
-
-        cookies = context.cookies()
-        user_agent = page.evaluate("() => navigator.userAgent")
-
-        browser.close()
-        p.stop()
-
-        self.headers.update(
-            {
-                "User-Agent": user_agent,
-                "x-csrf-token": csrf_token,
-                "Content-Type": "application/json",
-            }
-        )
-        for c in cookies:
-            self.cookies.set(
-                name=c["name"],
-                value=c["value"],
-                domain=c.get("domain"),
-                path=c.get("path"),
-            )
+        return session
 
     def get_organization_coreinfo(self, *, uuid: str, include_inherited_fkorg: bool = False) -> dict | None:
         """
@@ -406,7 +371,6 @@ class OS2sofdGuiClient(httpx.Client):
         if last_commit != "61cc63e9358c44d0c2e765ff86b0de6f11f66cce":
             raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
-        self.refresh_session()
         resp = self.get(f"ui/orgunit/core/{uuid}/edit")
         resp.raise_for_status()
         html = resp.text
@@ -481,7 +445,6 @@ class OS2sofdGuiClient(httpx.Client):
         if last_commit != "61cc63e9358c44d0c2e765ff86b0de6f11f66cce":
             raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
-        self.refresh_session()
         resp = self.post(f"rest/orgunit/{uuid}/update/coreInfo", json=json)
         resp.raise_for_status()
 
@@ -504,7 +467,6 @@ class OS2sofdGuiClient(httpx.Client):
         if last_commit != "61cc63e9358c44d0c2e765ff86b0de6f11f66cce":
             raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
-        self.refresh_session()
         resp = self.get(f"ui/orgunit/postsTab/{uuid}")
         resp.raise_for_status()
         html = resp.text
@@ -528,6 +490,7 @@ class OS2sofdGuiClient(httpx.Client):
             uuid: The UUID of the organization.
             address: The address data to update or create.
         """
+
         if not isinstance(address, dict):
             raise TypeError(f"json must be a dict, but got {type(address).__name__}")
 
@@ -543,8 +506,6 @@ class OS2sofdGuiClient(httpx.Client):
         if last_commit != "61cc63e9358c44d0c2e765ff86b0de6f11f66cce":
             raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
-        self.refresh_session()
-        headers = self.headers.copy()
-        headers["Uuid"] = uuid
-        resp = self.post(f"https://nyborg.sofd.io/rest/orgunit/editOrCreatePost", json=address, headers=headers)
+        headers = {**self.headers, "Uuid": uuid}
+        resp = self.post("https://nyborg.sofd.io/rest/orgunit/editOrCreatePost", json=address, headers=headers)
         resp.raise_for_status()
