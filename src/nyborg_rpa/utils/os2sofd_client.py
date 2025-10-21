@@ -288,6 +288,8 @@ class OS2sofdGuiClient(httpx.Client):
             **kwargs,
         )
 
+        self.validate_backend_hashes()
+
     @property
     def login_url(self) -> str:
         return f"{self.base_url}/saml/SSO"
@@ -310,6 +312,24 @@ class OS2sofdGuiClient(httpx.Client):
             self.login()
 
         return super().request(method, url, **kwargs)
+
+    def validate_backend_hashes(self) -> None:
+        """Check that backend methods have not been modified."""
+
+        repository = "OS2sofd/os2sofd"
+        hashes = {
+            "ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java#master": "61cc63e9358c44d0c2e765ff86b0de6f11f66cce",
+            "ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/dto/PostDTO.java#master": "61cc63e9358c44d0c2e765ff86b0de6f11f66cce",
+        }
+
+        tqdm.write("Validating backend file hashes...")
+        for url, expected_sha in hashes.items():
+
+            path, branch = url.split("#")
+            current_sha = latest_commit_hash(repository=repository, path=path, sha=branch)
+
+            if current_sha != expected_sha:
+                raise ValueError(f"The {url} file has been modified. Please review the script.")
 
     def _create_session(self) -> dict:
 
@@ -362,14 +382,6 @@ class OS2sofdGuiClient(httpx.Client):
         Returns:
             Dict with organization information if found, otherwise None.
         """
-
-        last_commit = latest_commit_hash(
-            repository="OS2sofd/os2sofd",
-            path="ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java",
-            sha="master",
-        )
-        if last_commit != "61cc63e9358c44d0c2e765ff86b0de6f11f66cce":
-            raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
         resp = self.get(f"ui/orgunit/core/{uuid}/edit")
         resp.raise_for_status()
@@ -437,14 +449,6 @@ class OS2sofdGuiClient(httpx.Client):
         if wrong_keys := set(json.keys()) ^ expected_keys:
             raise ValueError(f"JSON contains unexpected keys: {wrong_keys}. Expected: {expected_keys}")
 
-        last_commit = latest_commit_hash(
-            repository="OS2sofd/os2sofd",
-            path="ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java",
-            sha="master",
-        )
-        if last_commit != "61cc63e9358c44d0c2e765ff86b0de6f11f66cce":
-            raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
-
         resp = self.post(f"rest/orgunit/{uuid}/update/coreInfo", json=json)
         resp.raise_for_status()
 
@@ -458,14 +462,6 @@ class OS2sofdGuiClient(httpx.Client):
         Returns:
             List of addresses.
         """
-
-        last_commit = latest_commit_hash(
-            repository="OS2sofd/os2sofd",
-            path="ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/dto/PostDTO.java",
-            sha="master",
-        )
-        if last_commit != "61cc63e9358c44d0c2e765ff86b0de6f11f66cce":
-            raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
         resp = self.get(f"ui/orgunit/postsTab/{uuid}")
         resp.raise_for_status()
@@ -497,14 +493,6 @@ class OS2sofdGuiClient(httpx.Client):
         expected_keys = set(OrgAddress.__annotations__.keys())
         if wrong_keys := set(address.keys()) ^ expected_keys:
             raise ValueError(f"Address contains wrong or missing keys: {wrong_keys}. Expected: {expected_keys}")
-
-        last_commit = latest_commit_hash(
-            repository="OS2sofd/os2sofd",
-            path="ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/dto/PostDTO.java",
-            sha="master",
-        )
-        if last_commit != "61cc63e9358c44d0c2e765ff86b0de6f11f66cce":
-            raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
         headers = {**self.headers, "Uuid": uuid}
         resp = self.post("https://nyborg.sofd.io/rest/orgunit/editOrCreatePost", json=address, headers=headers)
