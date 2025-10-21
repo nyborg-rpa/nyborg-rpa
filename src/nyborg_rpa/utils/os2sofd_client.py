@@ -438,8 +438,9 @@ class OS2sofdGuiClient(httpx.Client):
         last_commit = latest_commit_hash(
             repository="OS2sofd/os2sofd",
             path="ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java",
+            sha="master",
         )
-        if last_commit != "f31185bcb65870d0277109c965cf78a7dd232b71":
+        if last_commit != "61cc63e9358c44d0c2e765ff86b0de6f11f66cce":
             raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
         self.refresh_session()
@@ -509,8 +510,12 @@ class OS2sofdGuiClient(httpx.Client):
         if wrong_keys := set(json.keys()) ^ expected_keys:
             raise ValueError(f"JSON contains unexpected keys: {wrong_keys}. Expected: {expected_keys}")
 
-        last_commit = latest_commit_hash(repository="OS2sofd/os2sofd", path="ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java")
-        if last_commit != "f31185bcb65870d0277109c965cf78a7dd232b71":
+        last_commit = latest_commit_hash(
+            repository="OS2sofd/os2sofd",
+            path="ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java",
+            sha="master",
+        )
+        if last_commit != "61cc63e9358c44d0c2e765ff86b0de6f11f66cce":
             raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
         self.refresh_session()
@@ -528,8 +533,12 @@ class OS2sofdGuiClient(httpx.Client):
             List of addresses.
         """
 
-        last_commit = latest_commit_hash(repository="OS2sofd/os2sofd", path="ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/dto/PostDTO.java")
-        if last_commit != "a700beeb959521e9c422933bc0703901da12cc15":
+        last_commit = latest_commit_hash(
+            repository="OS2sofd/os2sofd",
+            path="ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/dto/PostDTO.java",
+            sha="master",
+        )
+        if last_commit != "61cc63e9358c44d0c2e765ff86b0de6f11f66cce":
             raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
         self.refresh_session()
@@ -563,8 +572,12 @@ class OS2sofdGuiClient(httpx.Client):
         if wrong_keys := set(address.keys()) ^ expected_keys:
             raise ValueError(f"Address contains wrong or missing keys: {wrong_keys}. Expected: {expected_keys}")
 
-        last_commit = latest_commit_hash(repository="OS2sofd/os2sofd", path="ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/dto/PostDTO.java")
-        if last_commit != "a700beeb959521e9c422933bc0703901da12cc15":
+        last_commit = latest_commit_hash(
+            repository="OS2sofd/os2sofd",
+            path="ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/dto/PostDTO.java",
+            sha="master",
+        )
+        if last_commit != "61cc63e9358c44d0c2e765ff86b0de6f11f66cce":
             raise ValueError("The OrgUnitCoreInfo.java file has been modified. Please review the script.")
 
         self.refresh_session()
