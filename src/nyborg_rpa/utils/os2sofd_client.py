@@ -3,16 +3,15 @@ import os
 import sys
 from asyncio import WindowsProactorEventLoopPolicy
 from concurrent.futures import ThreadPoolExecutor
-from functools import lru_cache
 from typing import TypedDict
 
 import httpx
-import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 
 from nyborg_rpa.utils.auth import get_user_login_info
+from nyborg_rpa.utils.git import latest_commit_hash
 
 
 class OrgAddress(TypedDict):
@@ -24,34 +23,6 @@ class OrgAddress(TypedDict):
     country: str
     returnAddress: bool
     prime: bool
-
-
-@lru_cache(maxsize=None)
-def latest_commit_hash(
-    *,
-    repository: str,
-    path: str,
-    sha: str = "main",
-) -> str:
-    """
-    Get the latest commit hash (SHA) for a specific file in a GitHub repository.
-
-    Args:
-        repository: The GitHub repository in the format "owner/repo".
-        path: The file path within the repository.
-        sha: The branch or commit SHA to start from. Defaults to "main".
-    """
-
-    owner, repo = repository.split("/")
-    url = f"https://api.github.com/repos/{owner}/{repo}/commits?path={path}&sha={sha}"
-    resp = requests.get(url)
-    resp.raise_for_status()
-
-    commits = resp.json()
-    if not commits:
-        raise FileNotFoundError(f"No commits found for file at {url=!r}")
-
-    return commits[0]["sha"]
 
 
 class OS2sofdApiClient(httpx.Client):
