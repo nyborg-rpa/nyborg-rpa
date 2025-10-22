@@ -328,8 +328,9 @@ class OS2sofdGuiClient(httpx.Client):
         # if we are redirected to login page, use login and retry request
         if resp.status_code == 302 and resp.headers.get("Location") == self.login_url:
             self.login()
+            resp = super().request(method, url, **kwargs)
 
-        return super().request(method, url, **kwargs)
+        return resp
 
     def validate_backend_hashes(self) -> None:
         """Check that backend methods have not been modified."""
