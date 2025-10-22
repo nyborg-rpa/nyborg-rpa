@@ -180,30 +180,24 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
             orgs_without_los_match += [org]
             continue
 
-        # if primary address exists, update it; otherwise create new primary address
         address_details = parse_address_details(address=row["adresse"])
         org_addresses = os2_gui_client.get_organization_addresses(uuid=org["Uuid"])
-        primary_address = next((address for address in org_addresses if address["prime"]), None)
 
-        if primary_address is None:
-            primary_address = {
-                "id": "",
-                "street": address_details["street"],
-                "postalCode": address_details["zip_code"],
-                "city": address_details["city"],
-                "localname": "",
-                "country": "Danmark",
-                "returnAddress": True,
-                "prime": True,
-            }
+        # if primary address exists, update it; otherwise create new primary address
+        primary_address = next((address for address in org_addresses if address["prime"]), {})
+        new_address = {
+            "id": primary_address.get("id", ""),
+            "street": address_details["street"],
+            "postalCode": address_details["zip_code"],
+            "city": address_details["city"],
+            "localname": primary_address.get("localname", ""),
+            "country": primary_address.get("country", "Danmark"),
+            "returnAddress": primary_address.get("returnAddress", True),
+            "prime": primary_address.get("prime", True),
+        }
 
-        else:
-            primary_address["street"] = address_details["street"]
-            primary_address["postalCode"] = address_details["zip_code"]
-            primary_address["city"] = address_details["city"]
-
-        tqdm.write(f"Updating {org_name!r} with address={address_details!r}...")
-        os2_gui_client.edit_or_create_organization_address(uuid=org["Uuid"], address=primary_address)
+        tqdm.write(f"Updating {org_name!r} with address={new_address!r}...")
+        os2_gui_client.edit_or_create_organization_address(uuid=org["Uuid"], address=new_address)
 
     # #️⃣ STEP 3: Send report with organizations without match in LOS data if monday
     if datetime.today().strftime("%A") != "Monday":
