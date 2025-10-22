@@ -43,6 +43,7 @@ class OrgAddress(TypedDict):
     country: str
     returnAddress: bool
     prime: bool
+    master: NotRequired[str]
 
 
 class OS2sofdApiClient(httpx.Client):
@@ -497,7 +498,12 @@ class OS2sofdGuiClient(httpx.Client):
         if not isinstance(address, dict):
             raise TypeError(f"json must be a dict, but got {type(address).__name__}")
 
-        required_keys = set(OrgAddress.__annotations__.keys())
+        # remove 'master' key if present just to be safe
+        if "master" in address:
+            tqdm.write("Warning: 'master' key in address will be ignored when posting to SOFD GUI.")
+            del address["master"]
+
+        required_keys = set(OrgAddress.__required_keys__)
         if wrong_keys := set(address.keys()) ^ required_keys:
             raise ValueError(f"Address contains wrong or missing keys: {wrong_keys}. Expected: {required_keys}")
 
