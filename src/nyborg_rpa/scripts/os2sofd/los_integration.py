@@ -183,8 +183,9 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
         address_details = parse_address_details(address=row["adresse"])
         org_addresses = os2_gui_client.get_organization_addresses(uuid=org["Uuid"])
 
-        # if primary address exists, update it; otherwise create new primary address
-        primary_address = next((address for address in org_addresses if address["prime"]), {})
+        # if primary address exists and has master "SOFD", modify it
+        # otherwise create a new address
+        primary_address = next((address for address in org_addresses if address["prime"] and address["master"] == "SOFD"), {})
         new_address = {
             "id": primary_address.get("id", ""),
             "street": address_details["street"],
