@@ -18,7 +18,7 @@ def latest_commit_hash(
 
     owner, repo = repository.split("/")
     url = f"https://api.github.com/repos/{owner}/{repo}/commits"
-    resp = requests.get(url, params={"path": path, "sha": sha})
+    resp = requests.get(url, params={"path": path, "sha": sha, "per_page": 1})
     resp.raise_for_status()
 
     commits = resp.json()
