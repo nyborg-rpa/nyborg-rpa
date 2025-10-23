@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import sys
 from asyncio import WindowsProactorEventLoopPolicy
 from concurrent.futures import ThreadPoolExecutor
@@ -307,7 +308,38 @@ class OS2sofdGuiClient(httpx.Client):
             **kwargs,
         )
 
-        self.validate_backend_hashes()
+        # verify that backend endpoint files have not been modified
+        self.verify_endpoint_hashes()
+
+    @property
+    def endpoints(self) -> list[dict]:
+        return [
+            {
+                "fn": "public String getCoreFragment",
+                "permalink": "https://github.com/OS2sofd/os2sofd/blob/8f3e1efec8201bf4f437c663e1e28fb377cf65a6/ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/OrgUnitController.java#L720",
+                "dependees": [self.get_organization_coreinfo],
+            },
+            {
+                "fn": "public class OrgUnitCoreInfo",
+                "permalink": "https://github.com/OS2sofd/os2sofd/blob/61cc63e9358c44d0c2e765ff86b0de6f11f66cce/ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java#L10",
+                "dependees": [self.get_organization_coreinfo, self.post_organization_coreinfo],
+            },
+            {
+                "fn": "public HttpEntity<?> updateCoreInformation",
+                "permalink": "https://github.com/OS2sofd/os2sofd/blob/61cc63e9358c44d0c2e765ff86b0de6f11f66cce/ui/src/main/java/dk/digitalidentity/sofd/controller/rest/OrgUnitRestController.java#L350",
+                "dependees": [self.post_organization_coreinfo],
+            },
+            {
+                "fn": "public String getPostsTab",
+                "permalink": "https://github.com/OS2sofd/os2sofd/blob/8f3e1efec8201bf4f437c663e1e28fb377cf65a6/ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/OrgUnitController.java#L752",
+                "dependees": [self.get_organization_addresses],
+            },
+            {
+                "fn": "public ResponseEntity<?> editOrCreatePost",
+                "permalink": "https://github.com/OS2sofd/os2sofd/blob/61cc63e9358c44d0c2e765ff86b0de6f11f66cce/ui/src/main/java/dk/digitalidentity/sofd/controller/rest/OrgUnitRestController.java#L564",
+                "dependees": [self.edit_or_create_organization_address],
+            },
+        ]
 
     @property
     def login_url(self) -> str:
@@ -333,23 +365,19 @@ class OS2sofdGuiClient(httpx.Client):
 
         return resp
 
-    def validate_backend_hashes(self) -> None:
-        """Check that backend methods have not been modified."""
+    def verify_endpoint_hashes(self) -> None:
+        """Verify that the backend endpoint files have not been modified."""
 
-        repository = "OS2sofd/os2sofd"
-        hashes = {
-            "ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java#master": "61cc63e9358c44d0c2e765ff86b0de6f11f66cce",
-            "ui/src/main/java/dk/digitalidentity/sofd/controller/mvc/dto/PostDTO.java#master": "61cc63e9358c44d0c2e765ff86b0de6f11f66cce",
-        }
+        tqdm.write("Verifying backend endpoint file hashes...")
+        modified_endpoints = []
+        for endpoint in self.endpoints:
+            sha, path = re.match(r".*/([a-f0-9]{40})/(.+)#L\d+$", endpoint["permalink"]).groups()
+            current_sha = latest_commit_hash(repository="OS2sofd/os2sofd", path=path, sha="master")
+            modified_endpoints += [endpoint] if current_sha != sha else []
 
-        tqdm.write("Validating backend file hashes...")
-        for url, expected_sha in hashes.items():
-
-            path, branch = url.split("#")
-            current_sha = latest_commit_hash(repository=repository, path=path, sha=branch)
-
-            if current_sha != expected_sha:
-                raise ValueError(f"The {url} file has been modified. Please review the script.")
+        if modified_endpoints:
+            fns = [e["fn"] for e in modified_endpoints]
+            raise ValueError(f"Endpoints in OS2sofdGuiClient have been modified: {fns}.")
 
     def _create_session(self) -> dict:
 
