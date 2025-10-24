@@ -13,7 +13,6 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
 from tqdm import tqdm
 
-from nyborg_rpa.utils.auth import get_user_login_info
 from nyborg_rpa.utils.git import latest_commit_hash
 
 
@@ -286,6 +285,7 @@ class OS2sofdGuiClient(httpx.Client):
         self,
         *,
         user: str,
+        password: str,
         kommune: str,
         **kwargs,
     ):
@@ -300,7 +300,7 @@ class OS2sofdGuiClient(httpx.Client):
 
         self.kommune = kommune
         self.user = user
-        self.password = get_user_login_info(username=self.user, program="Windows")["password"]
+        self.password = password
 
         super().__init__(
             base_url=f"https://{self.kommune}.sofd.io",

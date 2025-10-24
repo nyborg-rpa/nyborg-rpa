@@ -7,6 +7,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from tqdm import tqdm
 
+from nyborg_rpa.utils.auth import get_user_login_info
 from nyborg_rpa.utils.email import send_email
 from nyborg_rpa.utils.excel import df_to_excel_table
 from nyborg_rpa.utils.os2sofd_client import OS2sofdApiClient, OS2sofdGuiClient
@@ -38,8 +39,10 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
     global os2_gui_client
 
     load_dotenv(override=True)
+    user_login_info = get_user_login_info(username="Roboit", program="Windows")
+
     os2_api_client = OS2sofdApiClient(kommune="nyborg")
-    os2_gui_client = OS2sofdGuiClient(user="Roboit", kommune="nyborg")
+    os2_gui_client = OS2sofdGuiClient(user=user_login_info["username"], password=user_login_info["password"], kommune="nyborg")
     working_dir: Path = Path(working_dir)
 
     # read LOS and SD files
