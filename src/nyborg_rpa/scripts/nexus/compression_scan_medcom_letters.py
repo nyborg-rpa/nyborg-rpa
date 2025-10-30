@@ -159,6 +159,21 @@ def find_active_organisation(
     return found_district
 
 
+def google_match(*, query, text):
+    text = text.lower()
+    must = re.findall(r'\+("[^"]+"|\S+)', query)
+    must_not = re.findall(r'-("[^"]+"|\S+)', query)
+
+    # check included
+    if not all(w.strip('"').lower() in text for w in must):
+        return False
+    # check excluded
+    if any(w.strip('"').lower() in text for w in must_not):
+        return False
+
+    return True
+
+
 def generate_report_email(letters: list[dict]) -> str:
 
     global nexus_environment
@@ -264,7 +279,7 @@ def scan_medcom_letters_and_send_report(*, recipients: list[str]):
             search_word = str(item.properties["fields"].properties["Title"])
             num_matches = int(item.properties["fields"].properties["Udslag"])
 
-            if search_word in letter_body.lower():
+            if google_match(query=search_word, text=letter_body):
                 keywords += [search_word]
                 item.fields.set_property("Udslag", num_matches + 1)
                 item.fields.update()  # needs .execute_query() to take effect
