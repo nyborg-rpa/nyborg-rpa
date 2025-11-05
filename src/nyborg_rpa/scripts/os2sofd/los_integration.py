@@ -203,9 +203,7 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
         tqdm.write(f"Updating {org_name!r} with address={new_address!r}...")
         os2_gui_client.edit_or_create_organization_address(uuid=org["Uuid"], address=new_address)
 
-    # #️⃣ STEP 3: Send report with organizations without match in LOS data if monday
-    if datetime.today().strftime("%A") != "Monday":
-        return
+    # #️⃣ STEP 3: Send report with organizations without match in LOS data
 
     # build dataframe with org name and full path for each org without match
     rows = []
