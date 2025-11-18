@@ -321,12 +321,12 @@ class OS2sofdGuiClient(httpx.Client):
             },
             {
                 "fn": "public class OrgUnitCoreInfo",
-                "permalink": "https://github.com/OS2sofd/os2sofd/blob/61cc63e9358c44d0c2e765ff86b0de6f11f66cce/ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java#L10",
+                "permalink": "https://github.com/OS2sofd/os2sofd/blob/cfb75fe2819ee4e67cf12001f3401c57b809ef7b/ui/src/main/java/dk/digitalidentity/sofd/controller/rest/model/OrgUnitCoreInfo.java#L10",
                 "dependees": [self.get_organization_coreinfo, self.post_organization_coreinfo],
             },
             {
                 "fn": "public HttpEntity<?> updateCoreInformation",
-                "permalink": "https://github.com/OS2sofd/os2sofd/blob/61cc63e9358c44d0c2e765ff86b0de6f11f66cce/ui/src/main/java/dk/digitalidentity/sofd/controller/rest/OrgUnitRestController.java#L350",
+                "permalink": "https://github.com/OS2sofd/os2sofd/blob/cfb75fe2819ee4e67cf12001f3401c57b809ef7b/ui/src/main/java/dk/digitalidentity/sofd/controller/rest/OrgUnitRestController.java#L350",
                 "dependees": [self.post_organization_coreinfo],
             },
             {
@@ -336,7 +336,7 @@ class OS2sofdGuiClient(httpx.Client):
             },
             {
                 "fn": "public ResponseEntity<?> editOrCreatePost",
-                "permalink": "https://github.com/OS2sofd/os2sofd/blob/61cc63e9358c44d0c2e765ff86b0de6f11f66cce/ui/src/main/java/dk/digitalidentity/sofd/controller/rest/OrgUnitRestController.java#L564",
+                "permalink": "https://github.com/OS2sofd/os2sofd/blob/cfb75fe2819ee4e67cf12001f3401c57b809ef7b/ui/src/main/java/dk/digitalidentity/sofd/controller/rest/OrgUnitRestController.java#L564",
                 "dependees": [self.edit_or_create_organization_address],
             },
         ]
