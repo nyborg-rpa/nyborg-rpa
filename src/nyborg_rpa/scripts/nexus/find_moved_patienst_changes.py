@@ -12,15 +12,16 @@ nexus_client: NexusClient
 nexus_environment: str
 
 
-def find_moved_patients():
+def fetch_moved_patients() -> set[str]:
+
     global nexus_client
 
-    # Find list "Borger fraflyttet kommunen med hjælpemiddel"
+    # find list "Borger fraflyttet kommunen med hjælpemiddel"
     resp = nexus_client.get(url="preferences/CITIZEN_LIST")
     resp.raise_for_status()
     list_url = next(item for item in resp.json() if item["name"] == "Borger fraflyttet kommunen med hjælpemiddel")["_links"]["self"]["href"]
 
-    # Get patients in the list
+    print("Fetching moved patients from Nexus...")
     resp = nexus_client.get(url=list_url)
     resp.raise_for_status()
     content_url = resp.json()["_links"]["content"]["href"]
@@ -29,6 +30,7 @@ def find_moved_patients():
     resp.raise_for_status()
     patients_view = resp.json()
 
+    print("Extracting moved patients...")
     moved_patients = set()
     for page in patients_view["pages"]:
         data: str = page["_links"]["patientData"]["href"]
@@ -37,7 +39,7 @@ def find_moved_patients():
     return moved_patients
 
 
-def generate_report_email(moved_patients: set) -> str:
+def generate_report_email(moved_patients: set[str]) -> str:
 
     global nexus_environment
 
@@ -72,11 +74,12 @@ def find_moved_patients_changes(*, recipients: list[str]):
 
     global nexus_client, nexus_environment
 
-    # Initialize Nexus client
+    # initialize Nexus client
     login_info = get_user_login_info(
         username="API",
         program="Nexus-Drift",
     )
+
     nexus_environment = "nexus"
     nexus_client = NexusClient(
         client_id=login_info["username"],
@@ -85,16 +88,17 @@ def find_moved_patients_changes(*, recipients: list[str]):
         enviroment=nexus_environment,
     )
 
-    # Load previously moved patients
+    # load previously moved patients
     with open("src/nyborg_rpa/scripts/nexus/previous_moved_patients.txt", "r") as f:
-        previos_moved_patients = set([line.strip() for line in f])
+        prev_moved_patients = set([line.strip() for line in f])
 
-    # Find currently moved patients
-    moved_patients = find_moved_patients()
-    new_moved_patients = moved_patients - previos_moved_patients
+    # find currently moved patients
+    moved_patients = fetch_moved_patients()
+    new_moved_patients = moved_patients - prev_moved_patients
 
     if new_moved_patients:
-        print("New moved patients found")
+
+        print(f"Found {len(new_moved_patients)} new moved patients, sending email...")
         load_dotenv(override=True)
         send_email(
             sender=os.environ["MS_MAILBOX"],
@@ -102,13 +106,11 @@ def find_moved_patients_changes(*, recipients: list[str]):
             subject="Rapport: Nye fraflyttede borgere med hjælpemiddel",
             body=generate_report_email(new_moved_patients),
         )
-    else:
-        print("No new moved patients")
 
-    # Save currently moved patients for next run
-    with open("src/nyborg_rpa/scripts/nexus/previous_moved_patients.txt", "w") as f:
-        for p in moved_patients:
-            f.write(p + "\n")
+        # save currently moved patients for next run
+        with open("src/nyborg_rpa/scripts/nexus/previous_moved_patients.txt", "w") as f:
+            for p in moved_patients:
+                f.write(p + "\n")
 
 
 if __name__ == "__main__":
