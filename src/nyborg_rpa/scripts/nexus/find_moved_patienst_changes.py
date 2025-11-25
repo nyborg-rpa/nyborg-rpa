@@ -45,7 +45,7 @@ def generate_report_email(moved_patients: set) -> str:
     body = f"""<!DOCTYPE html>
     <html>
     <body style="margin: 0; padding: 0; {typography_style};">
-    <p>Robotten har netop scannet "Borger fraflyttet kommunen med hjælpemiddel", og sammenlignet med sidste scanning. Den har nu identificeret følgende nye borgere på "Borger fraflyttet kommunen med hjælpemiddel":</p>
+    <p>Følgende borgere er nye på listen "Borger fraflyttet kommunen med hjælpemiddel":</p>
     <table border="1" cellpadding="4" cellspacing="0" width="100%" style="border-collapse: collapse; {typography_style};">
         <tr style="background-color: #dddddd; font-weight: bold;">
         <td>Borgere</td>
