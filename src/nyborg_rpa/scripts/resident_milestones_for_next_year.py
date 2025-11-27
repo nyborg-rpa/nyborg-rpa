@@ -190,8 +190,9 @@ def resident_milestones_for_next_year(
             anniversaries=[60, 65, 70, 75, 80],
             year=year,
         )
-        .sort_values(by=["anniversary", "couple_id", "cpr"])
         .assign(civil_valid_from=lambda df: pd.to_datetime(df["civil_valid_from"]).dt.strftime("%d. %B %Y"))
+        .assign(anniversary_date=lambda df: pd.to_datetime(df["civil_valid_from"]).dt.strftime(f"%m%d"))
+        .sort_values(by=["anniversary_date", "couple_id", "cpr"])
         .astype(str)
         .assign(anniversary=lambda df: df["anniversary"] + " år")
         .rename(
