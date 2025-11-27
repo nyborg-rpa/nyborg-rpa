@@ -109,7 +109,7 @@ def find_moved_patients_changes(*, recipients: list[str]):
 
         # save new moved patients for next run
         with open("src/nyborg_rpa/scripts/nexus/previous_moved_patients.txt", "w") as f:
-            for p in new_moved_patients:
+            for p in moved_patients:
                 f.write(p + "\n")
 
 
