@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import argh
 from dotenv import load_dotenv
@@ -89,7 +90,8 @@ def find_moved_patients_changes(*, recipients: list[str]):
     )
 
     # load previously moved patients
-    with open("src/nyborg_rpa/scripts/nexus/previous_moved_patients.txt", "r") as f:
+    previous_moved_patients_file = Path("J:/Drift/56. Find flyttede patienter/previous_moved_patients.txt")
+    with open(previous_moved_patients_file, "r") as f:
         prev_moved_patients = set([line.strip() for line in f])
 
     # find currently moved patients
@@ -108,7 +110,7 @@ def find_moved_patients_changes(*, recipients: list[str]):
         )
 
         # save new moved patients for next run
-        with open("src/nyborg_rpa/scripts/nexus/previous_moved_patients.txt", "w") as f:
+        with open(previous_moved_patients_file, "w") as f:
             for p in moved_patients:
                 f.write(p + "\n")
 
