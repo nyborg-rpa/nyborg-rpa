@@ -1,3 +1,5 @@
+import os
+
 from tqdm import tqdm
 
 from nyborg_rpa.utils.auth import get_user_login_info
@@ -6,8 +8,10 @@ from nyborg_rpa.utils.pad import dispatch_pad_script
 from nyborg_rpa.utils.tunstall_client import TunstallGuiClient
 
 
-def tes_sync(user: str) -> list[str]:
+def tes_sync(user: str | None = None) -> list[str]:
     """Sync TES users with OS2rollekatalog role assignments."""
+
+    user = user or os.environ["USERNAME"]
     password = get_user_login_info(username=user, program="Windows")["password"]
     tes_client = TunstallGuiClient(user=user, password=password)
     rollekatalog_client = OS2rollekatalogClient(kommune="nyborg")
