@@ -26,6 +26,7 @@ EXPECTED_DISTRICTS: tuple[dict] = (
     {"name": "Distrikt Rosengård", "active": True},
     {"name": "Distrikt Svanedam Vest", "active": True},
     {"name": "Distrikt Svanedam Øst", "active": True},
+    {"name": "E-distrikt", "active": False},
     {"name": "E-distrikt.", "active": False},
     {"name": "Private leverandører", "active": False},
 )
