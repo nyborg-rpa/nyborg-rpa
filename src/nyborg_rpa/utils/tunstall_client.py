@@ -128,4 +128,10 @@ class TunstallGuiClient(httpx.Client):
 
         result = [dict(zip(headers, row)) for row in rows]
 
+        # fix escaped unicode characters in all fields
+        for r in result:
+            for k, v in r.items():
+                if isinstance(v, str):
+                    r[k] = v.encode("raw_unicode_escape").decode("unicode_escape")
+
         return result
