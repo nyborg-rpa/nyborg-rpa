@@ -1,4 +1,5 @@
 import os
+import warnings
 from typing import Literal, TypedDict
 
 import pandas as pd
@@ -38,7 +39,10 @@ def get_auth_table() -> pd.DataFrame:
     conn = pyodbc.connect(conn_str, readonly=True, autocommit=False)
 
     # execute the SQL query to retrieve the login information
-    df = pd.read_sql_query(query, conn)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning, message="pandas only supports SQLAlchemy connectable")
+        df = pd.read_sql_query(query, conn)
+
     conn.close()
 
     return df
