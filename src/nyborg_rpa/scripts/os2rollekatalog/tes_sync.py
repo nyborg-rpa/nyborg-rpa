@@ -1,6 +1,8 @@
 import os
 import re
 
+from bidict import bidict
+from frozendict import deepfreeze, frozendict
 from tqdm import tqdm
 
 from nyborg_rpa.utils.auth import get_user_login_info
@@ -9,77 +11,65 @@ from nyborg_rpa.utils.pad import dispatch_pad_script
 from nyborg_rpa.utils.tunstall_client import TunstallGuiClient
 
 
-def tes_sync(*, user: str | None = None) -> list[str]:
+def tes_sync() -> list[str]:
     """Sync TES users with OS2rollekatalog role assignments."""
 
-    user = user or os.environ["USERNAME"]
-    password = get_user_login_info(username=user, program="Windows")["password"]
-    tes_client = TunstallGuiClient(user=user, password=password)
+    username = os.environ["USERNAME"]
+    password = get_user_login_info(username=username, program="Windows")["password"]
+    tes_client = TunstallGuiClient(user=username, password=password)
     rollekatalog_client = OS2rollekatalogClient(kommune="nyborg")
 
-    # TODO: make TES client return ALL info about a user, e.g. search_users(..., detailed=True) which calls get_user(id)
-    print("fetching TES users...")
-    current_active_user = tes_client.search_user(role="Adgang til Borger", employee_text="Medarbejder")
-    all_user = tes_client.search_user(role="Alle")
-    all_active_user = tes_client.search_user(role="Adgang til Borger")
+    sofd_role = "TES - Medarbejder"
+    tes_role = "Adgang til Borger"
+    tes_changes: list[dict] = []
 
-    print("fetching TES - Medarbejder user from OS2rollekatalog...")
-    roles_details = rollekatalog_client.get_userrole_details(role_name="TES - Medarbejder")
-    roles_user_assignments = roles_details["assignments"]
+    print("Fetching all TES users...")
+    tes_users: tuple[frozendict] = deepfreeze(tes_client.search_user(role="Alle"))
 
-    print("fetching all users and their role assignments from OS2rollekatalog...")
-    users = {}
-    roles = rollekatalog_client.get("read/userroles").json()
-    for role in tqdm(roles):
-        resp = rollekatalog_client.get(f"read/assigned/{role["id"]}", params={"indirectRoles": "true"})
-        resp.raise_for_status()
-        assigned = resp.json()
-        for a in assigned.get("assignments", []):
-            u = users.setdefault(a["uuid"], {"uuid": a["uuid"], "userId": a.get("userId"), "name": a.get("name"), "roles": []})
-            u["roles"] += [role] if role not in u["roles"] else []
+    print("Fetching assigned TES users...")
+    tes_users_assigned: tuple[frozendict] = deepfreeze(tes_client.search_user(role=tes_role, employee_text="Medarbejder"))
 
-    # compare lists and find users to add
-    add_changes = []
-    for user in tqdm(roles_user_assignments, desc="Find add changes"):
+    print("Fetching SOFD users...")
+    sofd_users: tuple[frozendict] = deepfreeze(rollekatalog_client.get_userrole_details(role_name=sofd_role).get("assignments", []))
 
-        tes_user = next((u for u in all_user if re.sub(r"@.*", "", u["Brugernavn"]).lower() == user["userId"].lower()), None)
-        is_active = tes_user and tes_user["Brugernavn"] in [u["Brugernavn"] for u in all_active_user]
+    # map SOFD users to TES users
+    sofd_tes_user_id_mapping = bidict()
+    for sofd_user in sofd_users:
+        if tes_user := next((u for u in tes_users if re.sub(r"@.*$", "", u["Brugernavn"]).lower() == sofd_user["userId"].lower()), None):
+            sofd_tes_user_id_mapping[sofd_user] = tes_user
 
-        # user already exists and is active
-        if is_active:
-            continue
+    # find users to add to TES
+    for sofd_user in tqdm(sofd_users, desc="Finding users to add"):
 
-        # exists in TES but is not active
-        if tes_user:
-            add_changes += [f"{tes_user["Navn"]}, {user["userId"]}, Tildel"]
+        tes_user = sofd_tes_user_id_mapping.get(sofd_user)
+        is_assigned = tes_user in tes_users_assigned
 
-        # does not exist in TES
-        else:
-            add_changes += [f"{user["name"]}, {user["userId"]}, Opret"]
+        if not tes_user:
+            tes_changes += [{"name": sofd_user["name"], "user": sofd_user["userId"], "action": "create"}]
 
-    # compare lists and find users to remove
-    remove_changes = []
-    for user in tqdm(current_active_user, desc="Find remove changes"):
+        elif not is_assigned:
+            tes_changes += [{"name": sofd_user["name"], "user": sofd_user["userId"], "action": "add"}]
 
-        should_remove = False
-        tes_username = re.sub(r"@.*", "", user["Brugernavn"]).lower()
-        rollekatalog_user = next((u for u in users.values() if u["userId"].lower() == tes_username), {})
+    # find users to remove from TES
+    for tes_user in tqdm(tes_users_assigned, desc="Finding users to remove"):
 
-        if not rollekatalog_user:
-            should_remove = True
+        sofd_user = sofd_tes_user_id_mapping.inv.get(tes_user)
+        if not sofd_user:
+            tes_changes += [{"name": tes_user["Navn"], "user": re.sub(r"@.*$", "", tes_user["Brugernavn"]), "action": "remove"}]
 
-        systems = {r["itSystemName"] for r in rollekatalog_user.get("roles", [])}
-        if not any(s in systems for s in ["Tunstall TES", "Tunstall Service Provider"]):
-            should_remove = True
+    # convert tes_changes Power Automate Desktop friendly format
+    # i.e. "Navn,UserId,Opret|Tildel|Fjern"
+    action_map = {
+        "create": "Opret",
+        "add": "Tildel",
+        # "remove": "Fjern",
+    }
+    changes_pad_friendly = []
+    for change in tes_changes:
+        if change["action"] in action_map:
+            changes_pad_friendly += [f"{change["name"]},{change["user"]},{action_map[change["action"]]}"]
 
-        if should_remove:
-            remove_changes += [f"{user["Navn"]}, {tes_username}, Fjern"]
-
-    # NOTE: temporary disabled removal of users
-    changes = add_changes
-    # changes = add_changes + remove_changes
-
-    return changes
+    return changes_pad_friendly
 
 
 if __name__ == "__main__":
