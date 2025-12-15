@@ -27,7 +27,7 @@ def tes_sync() -> list[str]:
     tes_users: tuple[frozendict] = deepfreeze(tes_client.search_user(role="Alle"))
 
     print("Fetching assigned TES users...")
-    tes_users_assigned: tuple[frozendict] = deepfreeze(tes_client.search_user(role=tes_role, employee_text="Medarbejder"))
+    tes_users_assigned: tuple[frozendict] = deepfreeze(tes_client.search_user(role=tes_role))
 
     print("Fetching SOFD users...")
     sofd_users: tuple[frozendict] = deepfreeze(rollekatalog_client.get_userrole_details(role_name=sofd_role).get("assignments", []))
