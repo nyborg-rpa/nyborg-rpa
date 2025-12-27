@@ -25,6 +25,8 @@ dependencies = [
     "tqdm>=4.67.1",
     "xlsxwriter>=3.2.3",
     "playwright>=1.52.0",
+    "frozendict>=2.4.7",
+    "bidict>=0.23.1",
 ]
 
 [dependency-groups]
