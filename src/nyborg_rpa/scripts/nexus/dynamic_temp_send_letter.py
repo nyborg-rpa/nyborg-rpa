@@ -1,8 +1,11 @@
+import argh
+
 from nyborg_rpa.utils.auth import get_user_login_info
 from nyborg_rpa.utils.nexus_client import NexusClient
 from nyborg_rpa.utils.pad import dispatch_pad_script
 
 
+@argh.arg("--letter-uuid", help="UUID of the letter to be sent.")
 def dynamic_temp_send_letter(*, letter_uuid: str):
 
     login_info = get_user_login_info(
