@@ -8,7 +8,14 @@ from nyborg_rpa.utils.email import get_attachments, get_messages, move_message
 from nyborg_rpa.utils.pad import dispatch_pad_script
 
 
-@argh.arg("--recipients", help="mail recipient")
+def convert_utf8_to_ansi(input_file: Path | str, output_file: Path | str):
+    # Læs filen som UTF-8
+    with open(input_file, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Skriv filen som Windows-1252 (ANSI)
+    with open(output_file, "w", encoding="cp1252", errors="replace") as f:
+        f.write(content)
 @argh.arg("--sender", help="mail sender")
 def resourcecentral_integration(*, recipient: str, sender: str):
     """Fetch emails with attachments from ResourceCentral and save them to Prisme folder."""
