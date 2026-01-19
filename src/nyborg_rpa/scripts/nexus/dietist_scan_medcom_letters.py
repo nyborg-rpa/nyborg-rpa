@@ -106,9 +106,6 @@ def get_organization_tree_info(name: str) -> dict:
 
     districts = find_sub_tree(item=data, name=name)
 
-    if mismatched_districts := ({d["name"] for d in districts} ^ {d["name"] for d in EXPECTED_DISTRICTS}):
-        raise ValueError(f"Found mismatched districts: {mismatched_districts}.")
-
     return {"distric_tree": districts, "district_ids": ids}
 
 
