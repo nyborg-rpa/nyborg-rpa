@@ -11,7 +11,7 @@ from nyborg_rpa.utils.pad import dispatch_pad_script
 def ad_fixes(*, project_dir: str | Path = None):
 
     # config
-    project_dir = project_dir or Path(r"C:\nyborg-rpa")
+    project_dir = Path(project_dir or r"C:\nyborg-rpa")
     output_dir = Path(r"J:\Drift\57. OS2sofd AD fix")
     notebooks = [
         project_dir / "src/nyborg_rpa/scripts/ad/ad_mail_attr_fix.ipynb",
