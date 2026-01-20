@@ -74,6 +74,25 @@ class OS2sofdApiClient(httpx.Client):
             **kwargs,
         )
 
+    def get_all_users(self) -> list[dict]:
+        """
+        Fetch all users.
+
+        Returns:
+            List of users.
+        """
+
+        params = {
+            "$expand": "Affiliations,Users,Photo,Phones,Children,AuthorizationCodes,Substitutes,DisabledUsers",
+        }
+
+        resp = self.get(url="odata/Persons", params=params)
+        resp.raise_for_status()
+
+        data = resp.json()
+
+        return data.get("value", [])
+
     def get_user_by_cpr(self, cpr: str) -> dict | None:
         """
         Fetch user information based on CPR number.
