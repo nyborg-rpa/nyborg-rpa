@@ -38,23 +38,20 @@ def resourcecentral_integration(*, recipient: str, sender: str, working_dir: Pat
 
         for attachment in attachments:
 
-            # read attachment content
+            # read attachment content and check for data
             content = attachment.read_text(encoding="utf-8")
-
-            # check if content has data
             if "No data found for the specified date range" in content:
                 print(f"No data found in attached file {attachment.name}.")
-                attachment.unlink()
+                continue
 
             # convert attachment to ANSI and save to Prisme folder
-            else:
-                print(f"Saving {attachment.name} to Prisme folder as ANSI (Windows-1252) encoding...")
-                prisme_file = prisme_dir / attachment.name
-                prisme_file.write_text(
-                    data=content,
-                    encoding="cp1252",
-                    errors="replace",
-                )
+            print(f"Saving {attachment.name} to Prisme folder as ANSI (Windows-1252) encoding...")
+            prisme_file = prisme_dir / attachment.name
+            prisme_file.write_text(
+                data=content,
+                encoding="cp1252",
+                errors="replace",
+            )
 
         # move processed mail to Archive folder
         move_message(
