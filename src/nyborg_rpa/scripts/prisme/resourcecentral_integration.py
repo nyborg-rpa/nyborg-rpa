@@ -32,8 +32,8 @@ def resourcecentral_integration(*, recipient: str, sender: str, working_dir: Pat
         attachments = get_attachments(
             recipient=recipient,
             message_id=msg["id"],
-            save_to=working_dir,
-            ignore_filtype=[".png", ".jpg"],
+            save_dir=working_dir,
+            exclude_filetypes=[".png", ".jpg"],
         )
 
         for attachment in attachments:

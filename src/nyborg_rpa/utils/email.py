@@ -1,5 +1,4 @@
 import base64
-import getpass
 import mimetypes
 import os
 from datetime import datetime
@@ -165,35 +164,41 @@ def get_messages_in_folder(
 def get_attachments(
     *,
     recipient: str,
-    folder: str | Literal["Inbox", "SentItems", "DeletedItems", "Archive"] = "Inbox",
     message_id: str,
-    save_to: str | Path | None = None,
-    ignore_filtype: list[str] | None = None,
+    save_dir: Path | str = "~/Downloads",
+    exclude_filetypes: list[str] | None = None,
 ) -> list[Path]:
+
+    # fetch attachments
     access_token = get_token()
-    url = f"https://graph.microsoft.com/v1.0/users/{recipient}/mailFolders/{folder}/messages/{message_id}/attachments"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
-    resp = requests.get(url, headers=headers, timeout=30)
+    resp = requests.get(
+        url=f"https://graph.microsoft.com/v1.0/users/{recipient}/messages/{message_id}/attachments",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        },
+        timeout=30,
+    )
     resp.raise_for_status()
-    attachments = resp.json().get("value", [])
+    data: dict = resp.json()
+    attachments = data.get("value", [])
 
-    if save_to:
-        save_to = Path(save_to)
-    else:
-        recipient = getpass.getuser()
-        save_to = Path(f"C:/Users/{recipient}/Downloads")
+    # resolve and create output directory
+    save_dir = Path(save_dir).expanduser().resolve()
+    save_dir.mkdir(parents=True, exist_ok=True)
 
-    attachments_list = []
-    for att in attachments:
-        if ignore_filtype and any(att["name"].endswith(ext) for ext in ignore_filtype):
-            continue
-        Path(save_to / att["name"]).write_bytes(base64.b64decode(att["contentBytes"]))
-        attachments_list.append(Path(save_to / att["name"]))
+    # filter attachments by excluded filetypes
+    exclude_filetypes = exclude_filetypes or []
+    attachments = [att for att in attachments if not any(att["name"].lower().endswith(ext.lower()) for ext in exclude_filetypes)]
 
-    return attachments_list
+    # save attachments to disk
+    saved_attachments: list[Path] = []
+    for attachment in attachments:
+        attachment_path = save_dir / str(attachment["name"])
+        attachment_path.write_bytes(base64.b64decode(attachment["contentBytes"]))
+        saved_attachments += [attachment_path]
+
+    return saved_attachments
 
 
 def move_message(*, recipient: str, message_id: str, destination_folder: str | Literal["Inbox", "SentItems", "DeletedItems", "Archive"]) -> dict:
