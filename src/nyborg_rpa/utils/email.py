@@ -14,6 +14,7 @@ EMAIL_ATTACHMENT_MAX_SIZE_BYTES = 3 * 1024 * 1024  # 3 MB
 
 
 def get_token() -> str:
+
     load_dotenv(override=True)
 
     tenant_id = os.getenv("MS_GRAPH_TENANT_ID")
@@ -104,7 +105,7 @@ def send_email(
     print(f"Sent email to {recipients} from {sender=!r} with {subject=!r}.")
 
 
-def get_messages(
+def get_messages_in_folder(
     *,
     recipient: str,
     folder: str | Literal["Inbox", "SentItems", "DeletedItems", "Archive"] = "Inbox",
@@ -114,7 +115,7 @@ def get_messages(
     subject_contains: str | None = None,
     only_unread: bool | None = False,
     top: int | None = 100,
-) -> dict | None:
+) -> list[dict]:
 
     assert received_to is None or received_to.tzinfo, "received_to must be timezone-aware"
     assert received_from is None or received_from.tzinfo, "received_from must be timezone-aware"
@@ -125,33 +126,40 @@ def get_messages(
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
     }
+
     params = {
         "$top": str(top),
     }
+
     if subject_contains:
         params["$search"] = f'"{subject_contains}"'
         headers["ConsistencyLevel"] = "eventual"
-    # else:
-    #     params["$orderby"] = "receivedDateTime desc"
 
-    # $filter for afsender, ulæst, dato, attachments
-    parts = []
+    # build filter param
+    filters = []
     if sender:
-        parts.append(f"from/emailAddress/address eq '{sender}'")
+        filters += [f"from/emailAddress/address eq '{sender}'"]
+
     if only_unread:
-        parts.append(f"isRead eq {only_unread}")
+        filters += ["isRead eq true"]
+
     if received_from:
-        parts.append(f"receivedDateTime ge {received_from.isoformat()}")
+        filters += [f"receivedDateTime ge {received_from.isoformat()}"]
+
     if received_to:
-        parts.append(f"receivedDateTime le {received_to.isoformat()}")
+        filters += [f"receivedDateTime le {received_to.isoformat()}"]
 
-    flt = " and ".join(parts)
-    if flt:
-        params["$filter"] = flt
+    # apply filter string
+    params["$filter"] = " and ".join(filters)
 
+    # fetch messages
+    print(f"Fetching messages for {recipient=!r} in folder {folder=!r} with filters: {params['$filter']!r} and search: {params.get('$search', None)!r}...")
     resp = requests.get(url, headers=headers, params=params, timeout=30)
     resp.raise_for_status()
-    return resp.json()
+    data = resp.json()
+    messages = data.get("value", [])
+
+    return messages
 
 
 def get_attachments(

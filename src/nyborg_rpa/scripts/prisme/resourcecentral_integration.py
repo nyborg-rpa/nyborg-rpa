@@ -4,7 +4,7 @@ from pathlib import Path
 import argh
 from dotenv import load_dotenv
 
-from nyborg_rpa.utils.email import get_attachments, get_messages, move_message
+from nyborg_rpa.utils.email import get_attachments, get_messages_in_folder, move_message
 from nyborg_rpa.utils.pad import dispatch_pad_script
 
 
@@ -19,16 +19,19 @@ def resourcecentral_integration(*, recipient: str, sender: str, working_dir: Pat
     working_dir = Path(working_dir)
     prisme_dir = Path(os.environ["PRISME_PATH_RESSOURCE_CENTRAL"])
 
-    print(f"Fetching mails for recipient: {recipient} from sender: {sender}")
-    mails = get_messages(recipient=recipient, sender=sender)
+    messages = get_messages_in_folder(
+        recipient=recipient,
+        folder="Inbox",
+        sender=sender,
+    )
 
-    for mail in mails["value"]:
+    for msg in messages:
 
-        print(f"Processing mail: {mail["subject"]}")
+        print(f"Processing mail: {msg["subject"]}")
 
         attachments = get_attachments(
             recipient=recipient,
-            message_id=mail["id"],
+            message_id=msg["id"],
             save_to=working_dir,
             ignore_filtype=[".png", ".jpg"],
         )
@@ -56,7 +59,7 @@ def resourcecentral_integration(*, recipient: str, sender: str, working_dir: Pat
         # move processed mail to Archive folder
         move_message(
             recipient=recipient,
-            message_id=mail["id"],
+            message_id=msg["id"],
             destination_folder="Archive",
         )
 
