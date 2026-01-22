@@ -50,7 +50,7 @@ def resourcecentral_integration(*, recipient: str, sender: str, working_dir: Pat
             prisme_file.write_text(
                 data=content,
                 encoding="cp1252",
-                errors="replace",
+                errors="strict",
             )
 
         # move processed mail to Archive folder
