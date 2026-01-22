@@ -1,4 +1,6 @@
+import asyncio
 import datetime as dt
+import sys
 from pathlib import Path
 
 import nbformat
@@ -9,6 +11,10 @@ from nyborg_rpa.utils.pad import dispatch_pad_script
 
 
 def ad_fixes(*, project_dir: str | Path = None):
+
+    # fix Windows event loop warning for Jupyter/zmq
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     # config
     project_dir = Path(project_dir or r"C:\nyborg-rpa")
