@@ -38,8 +38,11 @@ def resourcecentral_integration(*, recipient: str, sender: str, working_dir: Pat
 
         for attachment in attachments:
 
-            # read attachment content and check for data
+            # read attachment content and delete file
             content = attachment.read_text(encoding="utf-8")
+            attachment.unlink()
+
+            # skip empty attachments
             if "No data found for the specified date range" in content:
                 print(f"No data found in attached file {attachment.name}.")
                 continue
