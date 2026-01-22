@@ -58,14 +58,15 @@ def ad_fixes(*, project_dir: str | Path = None):
         output_path = output_dir / f"{dt.datetime.now():%Y%m%d-%H%M%S}-{nb_path.stem}.html"
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # execute notebook
-        ep.preprocess(nb, {"metadata": {"path": str(nb_path.parent)}})
+        # execute notebook (with allow_errors=False)
+        try:
+            ep.preprocess(nb, {"metadata": {"path": str(nb_path.parent)}})
 
-        # export to HTML and save
-        (body, resources) = html_exporter.from_notebook_node(nb)
-        output_path.write_text(body, encoding="utf-8")
-
-        print(f"Saved to {output_path.as_posix()}\n")
+        finally:
+            # export to HTML and save
+            (body, resources) = html_exporter.from_notebook_node(nb)
+            output_path.write_text(body, encoding="utf-8")
+            print(f"Saved to {output_path.as_posix()}")
 
     print(f"Finished processing {len(notebooks)} notebook(s).")
 
