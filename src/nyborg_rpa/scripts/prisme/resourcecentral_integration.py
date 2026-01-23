@@ -39,7 +39,7 @@ def resourcecentral_integration(*, recipient: str, sender: str, working_dir: Pat
         for attachment in attachments:
 
             # read attachment content and delete file
-            content = attachment.read_text(encoding="utf-8")
+            content = attachment.read_text(encoding="utf-8-sig")
             attachment.unlink()
 
             # skip empty attachments
