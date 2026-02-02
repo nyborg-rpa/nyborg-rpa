@@ -1,6 +1,6 @@
 import base64
 import os
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 import argh
 import pandas as pd
@@ -16,20 +16,6 @@ from nyborg_rpa.utils.pad import dispatch_pad_script
 sharepoint_client: GraphClient
 nexus_environment: str
 nexus_client: NexusClient
-
-EXPECTED_DISTRICTS: tuple[dict] = (
-    {"name": "Distrikt Aften By", "active": False},
-    {"name": "Distrikt Aften Land", "active": False},
-    {"name": "Distrikt Egepark", "active": True},
-    {"name": "Distrikt Egevang", "active": True},
-    {"name": "Distrikt Nat", "active": False},
-    {"name": "Distrikt Rosengård", "active": True},
-    {"name": "Distrikt Svanedam Vest", "active": True},
-    {"name": "Distrikt Svanedam Øst", "active": True},
-    {"name": "E-distrikt", "active": False},
-    {"name": "E-distrikt.", "active": False},
-    {"name": "Private leverandører", "active": False},
-)
 
 
 def fetch_medcom_letters(activity_name: str) -> list[dict]:
@@ -83,75 +69,82 @@ def fetch_medcom_letters(activity_name: str) -> list[dict]:
     return letters
 
 
-def get_organization_tree_info(name: str) -> dict:
+def get_org_subtree(level: str | None = None) -> dict:
+    """Get organizational subtree for a given `level`."""
 
     resp = nexus_client.get("organizations/tree?activeOnly=false")
-    data = resp.json()
-    ids = set()
+    top_level_org = resp.json()
 
-    def create_sub_tree_id_list(item: list):
-        for row in item:
-            ids.add(row["id"])
-            create_sub_tree_id_list(row["children"])
+    if not level:
+        return top_level_org
 
-    def find_sub_tree(*, item: dict, name: str):
-        if item.get("name") == name:
-            create_sub_tree_id_list(item["children"])
-            return item["children"]
-        else:
-            for child in item["children"]:
-                tree = find_sub_tree(item=child, name=name)
-                if tree is not None:
-                    return tree
+    org = {}
+    stack: list[dict] = [top_level_org]
+    while stack:
 
-    districts = find_sub_tree(item=data, name=name)
+        org = stack.pop()
+        stack.extend(org["children"])
 
-    return {"distric_tree": districts, "district_ids": ids}
+        if org.get("name") == level:
+            break
+
+    return org
 
 
-def find_active_organisation(
+def find_patients_district(
     *,
     patient_id: str,
-    district_ids: set,
-    distric_tree: list,
+    org_subtree: dict,
 ) -> str:
+    """Find the district a patient belongs to based on their organizations."""
+
+    # the "Hjemmepleje" subtree consists of districts, where each district has nested child orgs
+    districts: list[dict] = [e for e in org_subtree["children"] if e["name"].startswith("Distrikt")]
+
+    # a patient has multiple organizations, where each organization is a "forløb" in Nexus
+    # we need to find the primary organization on the form "Distrikt X" under "Hjemmepleje"
+    # we do this by checking which district contains the patient's organizations
 
     resp = nexus_client.get(f"patients/{patient_id}/organizations")
-    data = resp.json()
+    orgs = resp.json()
 
-    def find_parent_by_id(item: list, id: str) -> bool:
-        found_id = False
-        if item["id"] == id:
-            found_id = True
-            return found_id
-        else:
-            for row in item["children"]:
-                found_id = find_parent_by_id(row, id)
-                if found_id:
-                    return found_id
+    matching_districts: list[str] = []
+    for org in orgs:
 
-    found_district = set()
-    found_distrikt_id = []
-    for org in data:
-        if org["id"] in district_ids and org["effectiveAtPresent"]:
-            found_distrikt_id.append(org["id"])
-            for item in distric_tree:
-                check_id = find_parent_by_id(item, org["id"])
-                if check_id:
-                    found_district.add(item["name"])
-                    break
+        # skip inactive
+        if not org["effectiveAtPresent"]:
+            continue
 
-    active_districts = []
+        # find district which contains the org
+        for district in districts:
 
-    for item in found_district:
-        for district in EXPECTED_DISTRICTS:
-            if item == district["name"] and district["active"]:
-                active_districts.append(item)
+            flattened_children = []
+            stack = [district]
+            while stack and (child := stack.pop()):
+                flattened_children += [child]
+                stack += child["children"]
 
-    if len(active_districts) == 1:
-        found_district = active_districts[0]
-    else:
+            if any(child["id"] == org["id"] for child in flattened_children):
+                matching_districts += [district["name"]]
+                break
+
+    if not matching_districts:
+        tqdm.write(f"No matching districts found for {patient_id=!r}.")
         found_district = "Ukendt"
+
+    elif len((set(matching_districts))) == 1:
+        found_district = matching_districts[0]
+
+    else:
+        # use the most frequent district if there is a clear winner
+        counts = Counter(matching_districts)
+        top = counts.most_common(n=2)
+        if len(top) > 1 and top[0][1] > top[1][1]:
+            found_district = top[0][0]
+
+        # otherwise join all found districts alphabetically
+        else:
+            found_district = " / ".join(sorted(set(matching_districts)))
 
     return found_district
 
@@ -178,7 +171,7 @@ def generate_report_email(letters: list[dict]) -> str:
         if letter["keywords"]:
             districts[letter["district"]][letter["patient"]["id"]].append(letter)
 
-    for district in sorted(districts.keys()):
+    for district in sorted(districts.keys(), key=lambda x: (x == "Ukendt", len(x), x)):
         body += f"""
         <tr style="background-color: #f0f0f0; font-weight: bold;">
         <td colspan="4">{district}</td>
@@ -209,8 +202,8 @@ def generate_report_email(letters: list[dict]) -> str:
 
 def scan_medcom_letters_and_send_report(*, recipients: list[str]):
 
-    # get organization tree info
-    org_info = get_organization_tree_info(name="Hjemmepleje")
+    # get org tree for Hjemmepleje
+    org_subtree = get_org_subtree(level="Hjemmepleje")
 
     # fetch SharePoint lists
     print("Fetching SharePoint lists...")
@@ -278,7 +271,7 @@ def scan_medcom_letters_and_send_report(*, recipients: list[str]):
         # if letter contains keywords, add to list of matching letters
         # which will be used to generate the report email
         if keywords:
-            district = find_active_organisation(patient_id=letter["patient"]["id"], district_ids=org_info["district_ids"], distric_tree=org_info["distric_tree"])
+            district = find_patients_district(patient_id=letter["patient"]["id"], org_subtree=org_subtree)
             letter |= {"keywords": keywords, "district": district}
             letters_to_report += [letter]
 
