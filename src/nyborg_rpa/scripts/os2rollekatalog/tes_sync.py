@@ -21,7 +21,7 @@ def tes_sync() -> list[str]:
 
     sofd_role = "TES - Medarbejder"
     tes_role = "Adgang til Borger"
-    tes_changes: list[dict] = []
+    tes_changes: list[dict[str, str]] = []
 
     print("Fetching all TES users...")
     tes_users: tuple[frozendict] = deepfreeze(tes_client.search_user(role="Alle"))
@@ -57,12 +57,20 @@ def tes_sync() -> list[str]:
         if not sofd_user:
             tes_changes += [{"name": tes_user["Navn"], "user": re.sub(r"@.*$", "", tes_user["Brugernavn"]), "action": "remove"}]
 
+    # filter users (temporary fix)
+    tes_changes = [
+        change for change in tes_changes
+        if change["action"] != "remove"
+        or change["user"].startswith("vik")
+        or change["user"].startswith("idc")
+    ]  # fmt: skip
+
     # convert tes_changes Power Automate Desktop friendly format
     # i.e. "Navn,UserId,Opret|Tildel|Fjern"
     action_map = {
         "create": "Opret",
         "add": "Tildel",
-        # "remove": "Fjern",
+        "remove": "Fjern",
     }
     changes_pad_friendly = []
     for change in tes_changes:
