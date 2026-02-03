@@ -69,6 +69,9 @@ def helbredstillaeg_manual_mail_report(*, sharepoint_id: int, message: str | Non
         case "Muligvis valgt forkert sag":
             msg = "Robotten vælger muligvis en forkert sag, kan derfor ikke komme videre. Er derfor sendt til manuel behandling. Husk at afslut og slet den eksisterende opgave robotten har lavet."
 
+        case "Kunne ikke vælge den rigtig sag":
+            msg = "Robotten vælger muligvis en forkert sag, kan derfor ikke komme videre. Er derfor sendt til manuel behandling. Er derfor sendt til manuel behandling."
+
         case _:
             raise ValueError(f"ikke tilføjet!: {output["status_message"]}")
 
