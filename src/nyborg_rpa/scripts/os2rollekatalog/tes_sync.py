@@ -63,6 +63,8 @@ def tes_sync() -> list[str]:
         if change["action"] != "remove"
         or change["user"].startswith("vik")
         or change["user"].startswith("idc")
+        or re.match(r"^v\d+", change["user"])  #  users like v12345abc
+        or "vikar" in change["user"].lower()
     ]  # fmt: skip
 
     # convert tes_changes Power Automate Desktop friendly format
