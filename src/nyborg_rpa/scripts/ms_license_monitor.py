@@ -1,5 +1,6 @@
 import os
 
+import argh
 import pandas as pd
 from dotenv import load_dotenv
 from tqdm.auto import tqdm
@@ -30,6 +31,7 @@ def fetch_sku_product_name_mapping() -> dict[str, str]:
     )
 
 
+@argh.arg("--recipients", help="List of email recipients for the report.", nargs="*")
 def ms_license_monitor(*, recipients: list[str]) -> None:
 
     load_dotenv(dotenv_path=r"J:\RPA\.baseflow\.env", override=True)
