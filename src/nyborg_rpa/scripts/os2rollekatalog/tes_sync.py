@@ -64,6 +64,7 @@ def tes_sync() -> list[str]:
         or change["user"].startswith("vik")
         or change["user"].startswith("idc")
         or re.match(r"^v\d+", change["user"])  #  users like v12345abc
+        or "vikar" in change["name"].lower()
         or "vikar" in change["user"].lower()
     ]  # fmt: skip
 
