@@ -68,6 +68,9 @@ def tes_sync() -> list[str]:
         or "vikar" in change["user"].lower()
     ]  # fmt: skip
 
+    # skip empty users
+    tes_changes = [change for change in tes_changes if change["user"]]
+
     # convert tes_changes Power Automate Desktop friendly format
     # i.e. "Navn,UserId,Opret|Tildel|Fjern"
     action_map = {
@@ -77,8 +80,7 @@ def tes_sync() -> list[str]:
     }
     changes_pad_friendly = []
     for change in tes_changes:
-        if change["action"] in action_map:
-            changes_pad_friendly += [f"{change["name"]},{change["user"]},{action_map[change["action"]]}"]
+        changes_pad_friendly += [f"{change["name"]},{change["user"]},{action_map[change["action"]]}"]
 
     return changes_pad_friendly
 
