@@ -30,6 +30,7 @@ dependencies = [
     "nbconvert>=7.16.6",
     "ldap3>=2.9.1",
     "joblib>=1.5.2",
+    "pywin32>=311",
 ]
 
 [dependency-groups]
