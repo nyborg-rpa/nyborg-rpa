@@ -8,6 +8,7 @@ from typing import NotRequired, TypedDict
 import httpx
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from httpx_retries import Retry, RetryTransport
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
 from tqdm import tqdm
@@ -50,14 +51,16 @@ class OS2sofdApiClient(httpx.Client):
         *,
         kommune: str,
         api_key: str | None = None,
+        retry: Retry | None = Retry(total=3, backoff_factor=0.5),
         **kwargs,
     ):
         """
         Initialize the OS2sofdAPIClient.
 
         Args:
-            api_key: API key for SOFD. Defaults to `OS2SOFD_API_KEY` environment variable if not provided.
             kommune: The `{kommune}.sofd.io` domain to connect to.
+            api_key: API key for SOFD. Defaults to `OS2SOFD_API_KEY` environment variable if not provided.
+            retry: A Retry configuration for HTTP requests using httpx-retries. If None, no retries will be attempted.
             kwargs: Extra arguments passed to httpx.Client.
         """
 
@@ -65,9 +68,13 @@ class OS2sofdApiClient(httpx.Client):
             load_dotenv(override=True, verbose=True)
             api_key = os.environ["OS2SOFD_API_KEY"]
 
+        # setup retry transport if retry config is provided, otherwise use default httpx transport with no retries
+        transport = RetryTransport(retry=retry) if retry else None
+
         super().__init__(
             base_url=f"https://{kommune}.sofd.io",
             headers={"ApiKey": api_key},
+            transport=transport,
             **kwargs,
         )
 
@@ -300,9 +307,10 @@ class OS2sofdGuiClient(httpx.Client):
     def __init__(
         self,
         *,
+        kommune: str,
         user: str,
         password: str,
-        kommune: str,
+        retry: Retry | None = Retry(total=3, backoff_factor=0.5),
         **kwargs,
     ):
         """
@@ -311,6 +319,8 @@ class OS2sofdGuiClient(httpx.Client):
         Args:
             kommune: The `{kommune}.sofd.io` domain to connect to.
             user: The username for GUI login.
+            password: The password for GUI login.
+            retry: A Retry configuration for HTTP requests using httpx-retries. If None, no retries will be attempted.
             kwargs: Extra arguments passed to httpx.Client.
         """
 
@@ -318,9 +328,13 @@ class OS2sofdGuiClient(httpx.Client):
         self.user = user
         self.password = password
 
+        # setup retry transport if retry config is provided, otherwise use default httpx transport with no retries
+        transport = RetryTransport(retry=retry) if retry else None
+
         super().__init__(
             base_url=f"https://{self.kommune}.sofd.io",
             follow_redirects=False,
+            transport=transport,
             **kwargs,
         )
 
