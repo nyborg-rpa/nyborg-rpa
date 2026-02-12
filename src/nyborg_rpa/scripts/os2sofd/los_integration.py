@@ -126,7 +126,8 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
     # update each organisation with manager, address and pnr based on LOS data
     # and keep track of organizations with no match in LOS data
 
-    orgs_without_los_match = []
+    errors: list[dict] = []
+
     for org in tqdm(organizations, total=len(organizations), desc="Updating OS2sofd"):
 
         # an "rpa-override" tag without value will skip the organization or
@@ -150,7 +151,7 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
         # match organization from OS2sofd with LOS data on name
         matches = los_df.query(f"Afdeling == '{org_name}'").drop_duplicates()
         if matches.empty:
-            orgs_without_los_match += [org]
+            errors += [{"Organization": org, "Error": "Ingen match med afdeling i LOS"}]
             continue
 
         elif len(matches) > 1:
@@ -167,13 +168,16 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
                 organization_uuid=org["Uuid"],
                 user_uuid=manager_info.get("Uuid"),
             )
+        else:
+            errors += [{"Organization": org, "Error": "Leder findes ikke i SD/LOS data"}]
+            continue
 
         # parse address and pnr from LOS data
         # edit organization with new pnr
         org_coreinfo = os2_gui_client.get_organization_coreinfo(uuid=org["Uuid"])
         pnr: str | None = row["p-nummer"] or None
         if pnr is not None and not pnr.isdigit():
-            orgs_without_los_match += [org]
+            errors += [{"Organization": org, "Error": "Ingen p-nummer angivet i LOS"}]
             continue
 
         org_coreinfo["pnr"] = pnr
@@ -182,7 +186,7 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
 
         # edit organization with new address
         if pd.isna(row["adresse"]):
-            orgs_without_los_match += [org]
+            errors += [{"Organization": org, "Error": "Ingen adresse angivet i LOS"}]
             continue
 
         address_details = parse_address_details(address=row["adresse"])
@@ -209,10 +213,11 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
 
     # build dataframe with org name and full path for each org without match
     rows = []
-    for org in orgs_without_los_match:
-        if org["ParentUuid"]:
-            org_path = os2_api_client.get_organization_path(org, separator=" > ")
-            rows += [{"Afdeling": org["Name"], "Kilde": org["Source"], "Overliggende afdelinger": org_path}]
+    for org in errors:
+        # Skip main org "Nyborg Kommune". Only one without parrent"
+        if org["Organization"]["ParentUuid"]:
+            org_path = os2_api_client.get_organization_path(org["Organization"], separator=" > ")
+            rows += [{"Afdeling": org["Organization"]["Name"], "Kilde": org["Organization"]["Source"], "Overliggende afdelinger": org_path, "Fejltype": org["Error"]}]
 
     df_los_mismatches = pd.DataFrame(rows).sort_values(by="Overliggende afdelinger")
 
@@ -244,5 +249,5 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
 
 
 if __name__ == "__main__":
-    dispatch_pad_script(fn=los_integration)
-    # los_integration(mail_recipients=[], working_dir=r"C:\Users\\Downloads")
+    # dispatch_pad_script(fn=los_integration)
+    los_integration(mail_recipients=["emia@nyborg.dk"], working_dir=r"J:\Drift\54. OS2sofd - LOS integration")
