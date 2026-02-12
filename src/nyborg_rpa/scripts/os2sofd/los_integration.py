@@ -90,7 +90,9 @@ def los_integration(*, mail_recipients: list[str], working_dir: Path | str):
         username = None
         if pd.notna(row["CPR-nummer"]):
             user_info = os2_api_client.get_user_by_cpr(cpr=row["CPR-nummer"].replace("-", ""))
-            username = next((str(user["UserId"]).lower() for user in user_info["Users"] if "@" not in user["UserId"]), None)
+            ad_users = [user for user in user_info["Users"] if user["UserType"] == "ACTIVE_DIRECTORY" and user["Prime"]]
+            assert len(ad_users) <= 1, f"Multiple active directory users found for CPR {row['CPR-nummer']}: {[user['UserId'] for user in ad_users]}"
+            username = next((str(user["UserId"]).lower() for user in ad_users), None)
 
         match row["Afdeling"]:
 
