@@ -112,7 +112,7 @@ def fetch_koereliste(calendar_id: str, resource_ids: str, date: str, night: bool
     return save_path
 
 
-@argh.arg("--recipients", help="List of email recipients to send report to in case of error", type=str)
+@argh.arg("--recipients", help="List of email recipients to send report to in case of error", nargs="*")
 def backup_nexus_beredskab(*, recipients: list[str]):
     """Fetch calendar for given date and next 2 days and save as PDF file."""
     load_dotenv(dotenv_path=r"J:\RPA\.baseflow\.env", override=True)
