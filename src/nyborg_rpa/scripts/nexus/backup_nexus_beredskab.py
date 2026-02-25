@@ -42,13 +42,8 @@ def fetch_calendar_details(calendar_name: str) -> dict:
     resp.raise_for_status()
     visits_data = resp.json()
 
-    # Get list of resource ids, if resource is not visible, add - in front of id
-    resource_ids = []
-    for resource in visits_data["columnResource"]["resources"]:
-        if resource["visible"]:
-            resource_ids.append(resource["resourceId"])
-        else:
-            resource_ids.append("-" + resource["resourceId"])
+    # Get list of resource ids
+    resource_ids = [resource["resourceId"] for resource in visits_data["columnResource"]["resources"]]
 
     # convert list of resource ids to comma separated string
     resource_string = ",".join(resource_ids)
