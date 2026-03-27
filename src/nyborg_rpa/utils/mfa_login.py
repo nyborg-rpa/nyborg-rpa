@@ -8,6 +8,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Literal
 
+import argh
 from dotenv import load_dotenv
 from playwright.sync_api import Page, sync_playwright
 
@@ -151,12 +152,16 @@ def handle_test_mfa(page: Page, username: str, password: str):
         page.wait_for_load_state("networkidle")
 
 
-def mfa_login(system: Literal["kmd_i2", "nexus", "nexus_review", "fasit", "kp", "ksd", "sd", "prisme365", "sapa", "test"], username: str):
+@argh.arg("--system", help='"kmd_i2", "nexus", "nexus_review", "fasit", "kp", "ksd", "sd", "prisme365", "sapa", "test"')
+@argh.arg("--username", help="Robot username to use for login")
+def mfa_login(*, system: Literal["kmd_i2", "nexus", "nexus_review", "fasit", "kp", "ksd", "sd", "prisme365", "sapa", "test"], username: str):
 
+    print(f"Starting MFA login for system: {system} with username: {username}")
     print("Loading environment variables and user login info...")
     load_dotenv(dotenv_path=r"\\nbfil2\rpa\RPA\.baseflow\.env", override=True)
     password = get_user_login_info(username=username, program="Windows")["password"]
 
+    print("Launching Playwright browser for MFA login...")
     with TemporaryDirectory(prefix="playwright_") as tmp_dir:
 
         with sync_playwright() as pw:
@@ -210,4 +215,4 @@ def mfa_login(system: Literal["kmd_i2", "nexus", "nexus_review", "fasit", "kp", 
 
 
 if __name__ == "__main__":
-    dispatch_pad_script(script=mfa_login)
+    dispatch_pad_script(fn=mfa_login)
