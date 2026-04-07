@@ -33,6 +33,7 @@ dependencies = [
     "polars>=1.37.1",
     "httpx-retries==0.4.5",
     "pywin32>=311",
+    "pycryptodome>=3.23.0",
 ]
 
 [dependency-groups]
