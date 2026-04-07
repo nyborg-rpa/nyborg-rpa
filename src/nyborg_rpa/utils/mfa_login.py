@@ -192,6 +192,9 @@ def mfa_login(*, system: Literal["kmd_i2", "nexus", "nexus_review", "fasit", "kp
 
             page = context.pages[0]
 
+            # set download path
+            page.on("download", lambda download: download.save_as(Path("~/Downloads").expanduser() / download.suggested_filename))
+
             if system == "test":
                 handle_test_mfa(page, username, password)
             else:
