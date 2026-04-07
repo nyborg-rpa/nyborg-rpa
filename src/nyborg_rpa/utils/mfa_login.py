@@ -88,7 +88,7 @@ def handle_kp_mfa(page: Page):
 
 def handle_ksd_mfa(page: Page):
 
-    page.goto(url="https://ksdp.dk/sap/bc/ui5_ui5/sap/ZINFOSOEGNING/index.html?sap-client=003&single-role=true", wait_until="networkidle")
+    page.goto(url="https://ksdp.dk/start", wait_until="networkidle")
 
     if page.query_selector("#SelectedAuthenticationUrl"):
         page.select_option("#SelectedAuthenticationUrl", "Nyborg Kommune")
