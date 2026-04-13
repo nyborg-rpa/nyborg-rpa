@@ -94,11 +94,6 @@ def handle_ksd_mfa(page: Page):
         page.select_option("#SelectedAuthenticationUrl", "Nyborg Kommune")
         page.click("#btnOK")
 
-    page.wait_for_load_state("networkidle")
-    page.wait_for_load_state("domcontentloaded")
-    # Slowloading page, so we wait a bit longer here
-    time.sleep(30)
-
 
 def handle_dubu_mfa(page: Page):
 
@@ -138,18 +133,9 @@ def handle_prisme365_mfa(page: Page):
     page.goto(url="https://ax.prisme-365.dk/namespaces/AXSF/?cmp=NYK", wait_until="networkidle")
 
 
-def handle_test_mfa(page: Page, username: str, password: str):
+def handle_test_mfa(page: Page):
 
     page.goto(url="https://login.nyborg.dk/selvbetjening", wait_until="networkidle")
-    page.fill("#username", username)
-    page.fill("#password", password)
-    page.locator("button:has-text('Login')").click()
-    page.wait_for_load_state("networkidle")
-
-    if page.query_selector(".iCheck-helper") and page.query_selector(".iCheck-helper").is_visible():
-        page.click(".iCheck-helper")
-        page.click("#buttonAccept")
-        page.wait_for_load_state("networkidle")
 
 
 @argh.arg("--system", help='"kmd_i2", "nexus", "nexus_review", "fasit", "kp", "ksd", "sd", "prisme365", "sapa", "test"')
@@ -195,20 +181,29 @@ def mfa_login(*, system: Literal["kmd_i2", "nexus", "nexus_review", "fasit", "kp
             # set download path
             page.on("download", lambda download: download.save_as(Path("~/Downloads").expanduser() / download.suggested_filename))
 
-            if system == "test":
-                handle_test_mfa(page, username, password)
-            else:
-                all_fns_in_file = [obj for _, obj in globals().items() if callable(obj)]
-                fn = next(fn for fn in all_fns_in_file if fn.__name__ == f"handle_{system}_mfa")
-                fn(page)
+            all_fns_in_file = [obj for _, obj in globals().items() if callable(obj)]
+            fn = next(fn for fn in all_fns_in_file if fn.__name__ == f"handle_{system}_mfa")
+            fn(page)
+
+            # check for login form and fill if it exists
+            page.wait_for_load_state("networkidle")
+            if page.query_selector("#username"):
+                page.fill("#username", username)
+                page.fill("#password", password)
+                page.locator("button:has-text('Login')").click()
+                page.wait_for_load_state("networkidle")
+
+                if page.query_selector(".iCheck-helper") and page.query_selector(".iCheck-helper").is_visible():
+                    page.click(".iCheck-helper")
+                    page.click("#buttonAccept")
+                    page.wait_for_load_state("networkidle")
 
             # check for mfa code input and fill it if it exists
-            page.wait_for_load_state("networkidle")
             if page.query_selector("#mfaCode"):
                 secret = os.environ[f"MFA_SECRET_{username.upper()}"]
                 mfa_code = generate_totp(secret=secret)
                 page.fill("#mfaCode", mfa_code)
-                page.keyboard.press("Tab")
+                page.locator("#mfaCode").blur()
                 page.click("#loginBtn")
                 page.wait_for_load_state("networkidle")
 
