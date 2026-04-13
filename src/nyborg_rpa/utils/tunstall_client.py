@@ -31,7 +31,7 @@ class TunstallGuiClient(httpx.Client):
         self.session = self._create_session()
 
         super().__init__(
-            base_url=f"https://045001.carehosting.dk",
+            base_url="https://045001.carehosting.dk",
             headers=self.session["headers"],
             follow_redirects=False,
             **kwargs,
@@ -45,7 +45,12 @@ class TunstallGuiClient(httpx.Client):
                 path=c.get("path"),
             )
 
+        # make sure we have a valid session by checking for the presence of a known cookie
+        if not self.cookies.get("SamlSession"):
+            raise RuntimeError("Failed to create a valid session. 'SamlSession' cookie not found.")
+
     def _create_session(self) -> dict:
+
         try:
             p = sync_playwright().start()
         except Exception:
@@ -61,9 +66,7 @@ class TunstallGuiClient(httpx.Client):
         )
         page = context.new_page()
 
-        page.goto(f"https://045001.carehosting.dk")
-
-        page.wait_for_timeout(5000)
+        page.goto(url="https://045001.carehosting.dk", wait_until="networkidle")
 
         cookies = context.cookies()
         user_agent = page.evaluate("() => navigator.userAgent")
@@ -81,6 +84,7 @@ class TunstallGuiClient(httpx.Client):
         return session_info
 
     def search_user(self, *, role: str, department: str = "Nyborg", employee_text: str | None = None) -> dict:
+
         resp = self.get("personnel_search.aspx")
         resp.raise_for_status()
 
