@@ -528,3 +528,21 @@ class OS2sofdGuiClient(httpx.Client):
         headers = {**self.headers, "Uuid": uuid}
         resp = self.post("https://nyborg.sofd.io/rest/orgunit/editOrCreatePost", json=address, headers=headers)
         resp.raise_for_status()
+
+    def edit_affiliation(self, *, affiliation_uuid: str, body: dict):
+
+        # /rest/affil/core/edit/{uuid}
+        # https://github.com/OS2sofd/os2sofd/blob/master/ui/src/main/java/dk/digitalidentity/sofd/controller/rest/AffiliationRestController.java#L157
+
+        required_keys = {"positionName", "orgUnitUuid", "startDate", "stopDate", "affiliationType", "internalReference", "transferFKOrg", "deactivateAndDeleteRule"}
+        if wrong_keys := set(body.keys()) ^ required_keys:
+            print(f"Warning: Body contains wrong or missing keys: {wrong_keys}. Expected: {required_keys}")
+        # raise ValueError(f"Address contains wrong or missing keys: {wrong_keys}. Expected: {required_keys}")
+
+        resp = self.post(
+            url=f"/rest/affil/core/edit/{affiliation_uuid}",
+            json=body,
+            headers={**self.headers, "Referer": f"{self.base_url}/ui/affiliation/view/{affiliation_uuid}"},
+        )
+
+        resp.raise_for_status()
