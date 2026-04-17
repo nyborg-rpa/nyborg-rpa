@@ -27,7 +27,7 @@ class OS2rollekatalogClient(httpx.Client):
             api_key = os.environ["OS2ROLLEKATALOG_API_KEY"]
 
         super().__init__(
-            base_url=f"https://{kommune}.rollekatalog.dk/api",
+            base_url=f"https://{kommune}.rollekatalog.dk",
             headers={"ApiKey": api_key},
             **kwargs,
         )
@@ -40,7 +40,7 @@ class OS2rollekatalogClient(httpx.Client):
             List of dict with userroles.
         """
 
-        resp = self.get(url="read/userroles")
+        resp = self.get(url="/api/read/userroles")
         resp.raise_for_status()
 
         userroles = resp.json()
@@ -73,7 +73,7 @@ class OS2rollekatalogClient(httpx.Client):
             "withDescription": "true",
         }
 
-        resp = self.get(url=f"read/assigned/{userrole['id']}", params=params)
+        resp = self.get(url=f"/api/read/assigned/{userrole['id']}", params=params)
         resp.raise_for_status()
 
         userrole_details = resp.json()
