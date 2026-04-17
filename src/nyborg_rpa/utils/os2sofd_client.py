@@ -310,7 +310,6 @@ class OS2sofdGuiClient(httpx.Client):
         kommune: str,
         user: str,
         password: str,
-        retry: Retry | None = Retry(total=3, backoff_factor=0.5),
         **kwargs,
     ):
         """
@@ -328,13 +327,9 @@ class OS2sofdGuiClient(httpx.Client):
         self.user = user
         self.password = password
 
-        # setup retry transport if retry config is provided, otherwise use default httpx transport with no retries
-        transport = RetryTransport(retry=retry) if retry else None
-
         super().__init__(
             base_url=f"https://{self.kommune}.sofd.io",
             follow_redirects=False,
-            transport=transport,
             **kwargs,
         )
 
@@ -353,12 +348,24 @@ class OS2sofdGuiClient(httpx.Client):
 
     def request(self, method: str, url: str, **kwargs) -> httpx.Response:
 
+        tried_login = kwargs.pop("_tried_login", False)
         resp = super().request(method, url, **kwargs)
+
+        # if we already tried login and request still fails, raise error instead of retrying indefinitely
+        if tried_login and not str(resp.status_code).startswith("2"):
+            raise httpx.HTTPStatusError(f"Request failed even after login attempt: {resp.status_code} {resp.text}", request=resp.request, response=resp)
 
         # if we are redirected to login page, use login and retry request
         if resp.status_code == 302 and resp.headers.get("Location") == self.login_url:
             self.login()
-            resp = super().request(method, url, **kwargs)
+            kwargs["_tried_login"] = True
+            resp = self.request(method, url, **kwargs)
+
+        # we dont always get a redirect to login, where 403 means unauthorized
+        elif resp.status_code == 403:
+            self.login()
+            kwargs["_tried_login"] = True
+            resp = self.request(method, url, **kwargs)
 
         return resp
 
