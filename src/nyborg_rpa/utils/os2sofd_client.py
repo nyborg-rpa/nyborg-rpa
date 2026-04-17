@@ -335,7 +335,7 @@ class OS2sofdGuiClient(httpx.Client):
 
     @property
     def login_url(self) -> str:
-        return f"{self.base_url}/saml/SSO"
+        return f"{self.base_url}/saml2/authenticate?registrationId=IdP"
 
     def login(self) -> None:
         """Login to OS2sofd GUI and update session headers and cookies."""
