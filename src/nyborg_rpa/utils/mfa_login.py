@@ -133,14 +133,22 @@ def handle_prisme365_mfa(page: Page):
     page.goto(url="https://ax.prisme-365.dk/namespaces/AXSF/?cmp=NYK", wait_until="networkidle")
 
 
+def handle_ky_mfa(page: Page):
+
+    page.goto(url="https://fs0450.fs.kommunernesydelsessystem.dk/ky-fagsystem/", wait_until="networkidle")
+    if page.query_selector("#SelectedAuthenticationUrl"):
+        page.select_option("#SelectedAuthenticationUrl", "Nyborg Kommune")
+        page.click("#btnOK")
+
+
 def handle_test_mfa(page: Page):
 
     page.goto(url="https://login.nyborg.dk/selvbetjening", wait_until="networkidle")
 
 
-@argh.arg("--system", help='"kmd_i2", "nexus", "nexus_review", "fasit", "kp", "ksd", "sd", "prisme365", "sapa", "test"')
+@argh.arg("--system", help='"kmd_i2", "nexus", "nexus_review", "fasit", "kp", "ksd", "sd", "prisme365", "sapa", "ky", "test"')
 @argh.arg("--username", help="Robot username to use for login")
-def mfa_login(*, system: Literal["kmd_i2", "nexus", "nexus_review", "fasit", "kp", "ksd", "sd", "prisme365", "sapa", "test"], username: str):
+def mfa_login(*, system: Literal["kmd_i2", "nexus", "nexus_review", "fasit", "kp", "ksd", "sd", "prisme365", "sapa", "ky", "test"], username: str):
 
     print(f"Starting MFA login for system: {system} with username: {username}")
     print("Loading environment variables and user login info...")
